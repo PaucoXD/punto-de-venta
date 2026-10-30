@@ -5,74 +5,146 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Punto de Venta</title>
   <meta name="description" content="Punto de venta para tienditas, distribuidoras y refaccionarias: cobra con lector de código de barras, controla inventario, fiado y corte de caja. Funciona sin internet.">
-  <meta name="theme-color" content="#0b2a9a">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="iconos/icono.svg">
+  <link rel="apple-touch-icon" href="iconos/icono-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="marca" id="marca">Punto de Venta</div>
+  <!-- Íconos de Lucide (ISC, ver iconos/LICENSE-lucide.txt) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-banknote" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="2" /> <circle cx="12" cy="12" r="2" /> <path d="M6 12h.01M18 12h.01" /></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /> <circle cx="12" cy="13" r="3" /></symbol>
+    <symbol id="i-circle-arrow-down" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 8v8" /> <path d="m8 12 4 4 4-4" /></symbol>
+    <symbol id="i-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="m16 12-4-4-4 4" /> <path d="M12 16V8" /></symbol>
+    <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="m9 12 2 2 4-4" /></symbol>
+    <symbol id="i-credit-card" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2" /> <line x1="2" x2="22" y1="10" y2="10" /></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <polyline points="7 10 12 15 17 10" /> <line x1="12" x2="12" y1="15" y2="3" /></symbol>
+    <symbol id="i-hand-coins" viewBox="0 0 24 24"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" /> <path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" /> <path d="m2 16 6 6" /> <circle cx="16" cy="9" r="2.9" /> <circle cx="6" cy="5" r="3" /></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /> <path d="M12 7v5l4 2" /></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /> <path d="M7 11V7a5 5 0 0 1 10 0v4" /></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+    <symbol id="i-monitor-down" viewBox="0 0 24 24"><path d="M12 13V7" /> <path d="m15 10-3 3-3-3" /> <rect width="20" height="14" x="2" y="3" rx="2" /> <path d="M12 17v4" /> <path d="M8 21h8" /></symbol>
+    <symbol id="i-notebook-pen" viewBox="0 0 24 24"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4" /> <path d="M2 6h4" /> <path d="M2 10h4" /> <path d="M2 14h4" /> <path d="M2 18h4" /> <path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z" /></symbol>
+    <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /> <path d="M12 22V12" /> <path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7" /> <path d="m7.5 4.27 9 5.15" /></symbol>
+    <symbol id="i-package-plus" viewBox="0 0 24 24"><path d="M16 16h6" /> <path d="M19 13v6" /> <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14" /> <path d="m7.5 4.27 9 5.15" /> <polyline points="3.29 7 12 12 20.71 7" /> <line x1="12" x2="12" y1="22" y2="12" /></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /> <path d="m15 5 4 4" /></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="M12 5v14" /></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /> <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /> <rect x="6" y="14" width="12" height="8" rx="1" /></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /> <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /> <path d="M12 17.5v-11" /></symbol>
+    <symbol id="i-scan-barcode" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /> <path d="M17 3h2a2 2 0 0 1 2 2v2" /> <path d="M21 17v2a2 2 0 0 1-2 2h-2" /> <path d="M7 21H5a2 2 0 0 1-2-2v-2" /> <path d="M8 7v10" /> <path d="M12 7v10" /> <path d="M17 7v10" /></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /> <path d="m21 21-4.3-4.3" /></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /> <circle cx="12" cy="12" r="3" /></symbol>
+    <symbol id="i-shopping-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1" /> <circle cx="19" cy="21" r="1" /> <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" /> <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /> <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" /> <path d="M2 7h20" /> <path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7" /></symbol>
+    <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M3 6h18" /> <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /> <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /> <line x1="10" x2="10" y1="11" y2="17" /> <line x1="14" x2="14" y1="11" y2="17" /></symbol>
+    <symbol id="i-trending-up" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /> <polyline points="16 7 22 7 22 13" /></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <polyline points="17 8 12 3 7 8" /> <line x1="12" x2="12" y1="3" y2="15" /></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <circle cx="9" cy="7" r="4" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <path d="M16 3.13a4 4 0 0 1 0 7.75" /></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /> <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" /></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+  </svg>
+
+  <aside class="lateral">
+    <div class="marca">
+      <img src="iconos/icono.svg" alt="" width="36" height="36">
+      <div>
+        <strong id="marca">Punto de Venta</strong>
+        <small>Punto de venta</small>
+      </div>
+    </div>
     <nav class="tabs" id="tabs">
-      <button data-vista="vender" class="activa">Vender</button>
-      <button data-vista="productos">Productos</button>
-      <button data-vista="clientes">Clientes</button>
-      <button data-vista="caja">Caja</button>
-      <button data-vista="ajustes">Ajustes</button>
+      <button data-vista="vender" class="activa"><svg class="ic"><use href="#i-shopping-cart"/></svg><span>Vender</span></button>
+      <button data-vista="productos"><svg class="ic"><use href="#i-package"/></svg><span>Productos</span></button>
+      <button data-vista="clientes"><svg class="ic"><use href="#i-users"/></svg><span>Clientes</span></button>
+      <button data-vista="caja"><svg class="ic"><use href="#i-wallet"/></svg><span>Caja</span></button>
+      <button data-vista="ajustes"><svg class="ic"><use href="#i-settings"/></svg><span>Ajustes</span></button>
     </nav>
-  </header>
+    <button id="btn-instalar" class="instalar" hidden><svg class="ic"><use href="#i-monitor-down"/></svg><span>Instalar en este equipo</span></button>
+  </aside>
 
   <main>
     <!-- VENDER -->
     <section class="vista activa" id="vista-vender">
       <div class="venta">
-        <div class="panel carrito-panel">
+        <div class="catalogo">
           <form id="form-buscar" class="buscar" autocomplete="off">
-            <input id="buscar" type="search" placeholder="Escanea o escribe código, nombre o marca" autofocus>
-            <button type="button" id="btn-camara" class="sec" title="Escanear con la cámara">📷</button>
+            <label class="campo-buscar">
+              <svg class="ic"><use href="#i-scan-barcode"/></svg>
+              <input id="buscar" type="search" placeholder="Escanea o escribe código, nombre o marca" autofocus>
+              <kbd>Enter</kbd>
+            </label>
+            <button type="button" id="btn-camara" class="sec icono" title="Escanear con la cámara"><svg class="ic"><use href="#i-camera"/></svg></button>
+            <ul id="sugerencias" class="sugerencias"></ul>
           </form>
-          <ul id="sugerencias" class="sugerencias"></ul>
-          <div class="tabla-wrap">
-            <table class="tabla" id="carrito">
-              <thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Importe</th><th></th></tr></thead>
-              <tbody></tbody>
-            </table>
-            <p class="vacio" id="carrito-vacio">Escanea un producto o búscalo por nombre para empezar.</p>
-          </div>
+          <div class="chips" id="categorias"></div>
+          <div class="mosaico" id="mosaico"></div>
         </div>
 
-        <aside class="panel cobro">
-          <div class="total-grande"><span>Total</span><strong id="total">$0.00</strong></div>
-          <div class="piezas" id="piezas">0 piezas</div>
-          <label>Forma de pago
-            <select id="pago">
-              <option value="efectivo">Efectivo</option>
-              <option value="tarjeta">Tarjeta / transferencia</option>
-              <option value="credito">Crédito (fiado)</option>
-            </select>
-          </label>
-          <label id="campo-cliente" hidden>Cliente
-            <select id="venta-cliente"></select>
-          </label>
-          <label id="campo-recibido">Recibido
-            <input id="recibido" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </label>
-          <div class="cambio" id="cambio"></div>
-          <button id="btn-cobrar" class="grande">Cobrar (F2)</button>
-          <button id="btn-vaciar" class="sec">Cancelar venta</button>
+        <aside class="panel ticket-panel">
+          <header class="ticket-cab">
+            <h2><svg class="ic"><use href="#i-receipt"/></svg> Venta actual</h2>
+            <span class="pill" id="piezas">0 piezas</span>
+          </header>
+          <ul class="carrito" id="carrito"></ul>
+          <div class="vacio" id="carrito-vacio">
+            <svg class="ic grande"><use href="#i-scan-barcode"/></svg>
+            <p>Escanea un producto o tócalo en la lista para empezar.</p>
+          </div>
+
+          <div class="cobro">
+            <div class="total-grande"><span>Total</span><strong id="total">$0.00</strong></div>
+            <input type="hidden" id="pago" value="efectivo">
+            <div class="segmentos" id="formas-pago">
+              <button type="button" data-pago="efectivo" class="activa"><svg class="ic"><use href="#i-banknote"/></svg>Efectivo</button>
+              <button type="button" data-pago="tarjeta"><svg class="ic"><use href="#i-credit-card"/></svg>Tarjeta</button>
+              <button type="button" data-pago="credito"><svg class="ic"><use href="#i-notebook-pen"/></svg>Fiado</button>
+            </div>
+            <label id="campo-cliente" hidden>Cliente
+              <select id="venta-cliente"></select>
+            </label>
+            <div id="campo-recibido" class="recibido">
+              <label>Recibido
+                <input id="recibido" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+              </label>
+              <div class="billetes" id="billetes">
+                <button type="button" data-billete="exacto">Exacto</button>
+                <button type="button" data-billete="50">$50</button>
+                <button type="button" data-billete="100">$100</button>
+                <button type="button" data-billete="200">$200</button>
+                <button type="button" data-billete="500">$500</button>
+              </div>
+            </div>
+            <div class="cambio" id="cambio"></div>
+            <button id="btn-cobrar" class="cobrar"><svg class="ic"><use href="#i-circle-check"/></svg>Cobrar <kbd>F2</kbd></button>
+            <button id="btn-vaciar" class="fantasma"><svg class="ic"><use href="#i-trash-2"/></svg>Cancelar venta</button>
+          </div>
         </aside>
       </div>
     </section>
 
     <!-- PRODUCTOS -->
     <section class="vista" id="vista-productos">
-      <div class="barra">
-        <input id="filtro-productos" type="search" placeholder="Buscar producto…">
-        <label class="check"><input type="checkbox" id="solo-bajos"> Solo con poco stock</label>
-        <button id="btn-nuevo-producto">+ Producto</button>
-        <button id="btn-importar" class="sec">Importar CSV</button>
-        <button id="btn-exportar-productos" class="sec">Exportar CSV</button>
+      <header class="cabecera">
+        <div>
+          <h1>Productos</h1>
+          <p class="resumen" id="resumen-inventario"></p>
+        </div>
+        <div class="acciones">
+          <button id="btn-importar" class="sec"><svg class="ic"><use href="#i-upload"/></svg>Importar CSV</button>
+          <button id="btn-exportar-productos" class="sec"><svg class="ic"><use href="#i-download"/></svg>Exportar</button>
+          <button id="btn-nuevo-producto"><svg class="ic"><use href="#i-plus"/></svg>Producto</button>
+        </div>
         <input type="file" id="archivo-csv" accept=".csv,text/csv" hidden>
+      </header>
+      <div class="barra">
+        <label class="campo-buscar chico">
+          <svg class="ic"><use href="#i-search"/></svg>
+          <input id="filtro-productos" type="search" placeholder="Buscar por nombre, código o marca…">
+        </label>
+        <label class="interruptor"><input type="checkbox" id="solo-bajos"><span></span>Solo con poco stock</label>
       </div>
-      <div class="resumen" id="resumen-inventario"></div>
       <div class="tabla-wrap panel">
         <table class="tabla" id="tabla-productos">
           <thead><tr><th>Código</th><th>Producto</th><th>Marca</th><th class="num">Precio</th><th class="num">Mayoreo</th><th class="num">Stock</th><th></th></tr></thead>
@@ -83,11 +155,21 @@
 
     <!-- CLIENTES -->
     <section class="vista" id="vista-clientes">
+      <header class="cabecera">
+        <div>
+          <h1>Clientes</h1>
+          <p class="resumen" id="resumen-clientes"></p>
+        </div>
+        <div class="acciones">
+          <button id="btn-nuevo-cliente"><svg class="ic"><use href="#i-plus"/></svg>Cliente</button>
+        </div>
+      </header>
       <div class="barra">
-        <input id="filtro-clientes" type="search" placeholder="Buscar cliente…">
-        <button id="btn-nuevo-cliente">+ Cliente</button>
+        <label class="campo-buscar chico">
+          <svg class="ic"><use href="#i-search"/></svg>
+          <input id="filtro-clientes" type="search" placeholder="Buscar cliente…">
+        </label>
       </div>
-      <div class="resumen" id="resumen-clientes"></div>
       <div class="tabla-wrap panel">
         <table class="tabla" id="tabla-clientes">
           <thead><tr><th>Cliente</th><th>Teléfono</th><th class="num">Límite</th><th class="num">Debe</th><th></th></tr></thead>
@@ -98,13 +180,19 @@
 
     <!-- CAJA -->
     <section class="vista" id="vista-caja">
-      <div class="barra">
-        <button id="btn-entrada" class="sec">+ Entrada de efectivo</button>
-        <button id="btn-salida" class="sec">− Salida de efectivo</button>
-        <button id="btn-corte">Hacer corte de caja</button>
-      </div>
+      <header class="cabecera">
+        <div>
+          <h1>Caja</h1>
+          <p class="resumen">Desde el último corte</p>
+        </div>
+        <div class="acciones">
+          <button id="btn-entrada" class="sec"><svg class="ic"><use href="#i-circle-arrow-down"/></svg>Entrada</button>
+          <button id="btn-salida" class="sec"><svg class="ic"><use href="#i-circle-arrow-up"/></svg>Salida</button>
+          <button id="btn-corte"><svg class="ic"><use href="#i-lock"/></svg>Hacer corte</button>
+        </div>
+      </header>
       <div class="tarjetas" id="tarjetas-caja"></div>
-      <h3>Ventas desde el último corte</h3>
+      <h3>Ventas del turno</h3>
       <div class="tabla-wrap panel">
         <table class="tabla" id="tabla-ventas">
           <thead><tr><th>Folio</th><th>Hora</th><th>Pago</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
@@ -122,24 +210,28 @@
 
     <!-- AJUSTES -->
     <section class="vista" id="vista-ajustes">
-      <form class="panel form" id="form-ajustes">
-        <h3>Datos del negocio (salen en el ticket)</h3>
-        <label>Nombre del negocio <input name="negocio"></label>
-        <label>Dirección <input name="direccion"></label>
-        <label>Teléfono <input name="telefono"></label>
-        <label>Mensaje al final del ticket <input name="pie" placeholder="¡Gracias por su compra!"></label>
-        <label>Avisar stock bajo cuando queden (si el producto no tiene mínimo)
-          <input name="stockMinDefault" type="number" min="0" step="1">
-        </label>
-        <button>Guardar</button>
-      </form>
-      <div class="panel form">
-        <h3>Respaldo</h3>
-        <p class="muted">Todo se guarda solo en este navegador. Descarga un respaldo seguido para no perder tus datos.</p>
-        <div class="fila">
-          <button id="btn-respaldo">Descargar respaldo</button>
-          <button id="btn-restaurar" class="sec">Restaurar respaldo</button>
-          <input type="file" id="archivo-respaldo" accept=".json,application/json" hidden>
+      <header class="cabecera"><div><h1>Ajustes</h1></div></header>
+      <div class="ajustes">
+        <form class="panel form" id="form-ajustes">
+          <h3><svg class="ic"><use href="#i-store"/></svg> Datos del negocio</h3>
+          <p class="muted">Salen en el ticket.</p>
+          <label>Nombre del negocio <input name="negocio"></label>
+          <label>Dirección <input name="direccion"></label>
+          <label>Teléfono <input name="telefono"></label>
+          <label>Mensaje al final del ticket <input name="pie" placeholder="¡Gracias por su compra!"></label>
+          <label>Avisar stock bajo cuando queden (si el producto no tiene mínimo)
+            <input name="stockMinDefault" type="number" min="0" step="1">
+          </label>
+          <div class="fila fin"><button>Guardar</button></div>
+        </form>
+        <div class="panel form">
+          <h3><svg class="ic"><use href="#i-history"/></svg> Respaldo</h3>
+          <p class="muted">Todo se guarda solo en este equipo. Descarga un respaldo seguido para no perder tus datos.</p>
+          <div class="fila">
+            <button id="btn-respaldo"><svg class="ic"><use href="#i-download"/></svg>Descargar respaldo</button>
+            <button id="btn-restaurar" class="sec"><svg class="ic"><use href="#i-upload"/></svg>Restaurar</button>
+            <input type="file" id="archivo-respaldo" accept=".json,application/json" hidden>
+          </div>
         </div>
       </div>
     </section>

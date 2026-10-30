@@ -43,6 +43,8 @@ const dinero = (n) => '$' + redondear(n).toLocaleString('es-MX', { minimumFracti
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sinAcentos = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const fecha = (t) => new Date(t).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+const ic = (nombre) => `<svg class="ic"><use href="#i-${nombre}"/></svg>`;
+const boton = (e) => e.target.closest('button')?.dataset || {};
 const hora = (t) => new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
 const producto = (pid) => db.productos.find((p) => p.id === pid);
@@ -65,7 +67,7 @@ function mostrarVista(nombre) {
   ({ vender: pintarVender, productos: pintarProductos, clientes: pintarClientes, caja: pintarCaja, ajustes: pintarAjustes })[nombre]();
   if (nombre === 'vender') $('#buscar').focus();
 }
-$('#tabs').addEventListener('click', (e) => { if (e.target.dataset.vista) mostrarVista(e.target.dataset.vista); });
+$('#tabs').addEventListener('click', (e) => { const v = boton(e).vista; if (v) mostrarVista(v); });
 
 // ---------- Ventana de formulario ----------
 // campos: [{ nombre, etiqueta, tipo, valor, opciones, requerido, ancho }]
@@ -153,7 +155,7 @@ function pintarSugerencias() {
   lista.innerHTML = res.map((p, i) => `
     <li data-id="${p.id}" class="${i === 0 ? 'sel' : ''}">
       <span>${esc(p.nombre)} <small>${esc(p.marca || '')} · ${esc(p.codigo || 's/código')}</small></span>
-      <span>${dinero(p.precio)} <small>(${num(p.stock)})</small></span>
+      <span><b>${dinero(p.precio)}</b> <small>${num(p.stock)} pzs</small></span>
     </li>`).join('');
 }
 
@@ -214,17 +216,22 @@ const totalCarrito = () => redondear(carrito.reduce((s, l) => s + precioLinea(l)
 
 function pintarVender() {
   carrito = carrito.filter((l) => producto(l.productoId));
-  const tbody = $('#carrito tbody');
-  tbody.innerHTML = carrito.map((l, i) => {
+  $('#carrito').innerHTML = carrito.map((l, i) => {
     const p = producto(l.productoId);
     const precio = precioLinea(l);
-    return `<tr>
-      <td>${esc(p.nombre)}${esMayoreo(l) ? '<span class="tag">mayoreo</span>' : ''}<br><small class="muted">${esc(p.codigo || '')}</small></td>
-      <td class="num"><input class="cant" type="number" min="0" step="any" value="${l.cant}" data-i="${i}"></td>
-      <td class="num"><button class="link" data-precio="${i}" title="Cambiar precio">${dinero(precio)}</button></td>
-      <td class="num">${dinero(precio * l.cant)}</td>
-      <td><button class="link peligro" data-quitar="${i}" title="Quitar">✕</button></td>
-    </tr>`;
+    return `<li class="linea">
+      <div class="nombre">${esc(p.nombre)}${esMayoreo(l) ? '<span class="tag">mayoreo</span>' : ''}</div>
+      <div class="importe">${dinero(precio * l.cant)}</div>
+      <div class="detalle">
+        <span class="paso">
+          <button type="button" data-menos="${i}" title="Quitar una">${ic('minus')}</button>
+          <input class="cant" type="number" min="0" step="any" value="${l.cant}" data-i="${i}" aria-label="Cantidad">
+          <button type="button" data-mas="${i}" title="Agregar una">${ic('plus')}</button>
+        </span>
+        <button type="button" class="precio-btn" data-precio="${i}" title="Cambiar precio">× ${dinero(precio)}</button>
+      </div>
+      <div class="fin"><button type="button" class="btn-icono peligro" data-quitar="${i}" title="Quitar">${ic('x')}</button></div>
+    </li>`;
   }).join('');
   $('#carrito-vacio').hidden = carrito.length > 0;
   $('#total').textContent = dinero(totalCarrito());
@@ -237,7 +244,48 @@ function pintarVender() {
     db.clientes.map((c) => `<option value="${c.id}">${esc(c.nombre)} (debe ${dinero(c.saldo)})</option>`).join('');
   sel.value = actual;
   pintarCambio();
+  pintarMosaico();
 }
+
+// Color fijo para cada categoría
+const tono = (texto) => [...String(texto || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 222);
+
+// Botones de productos para tocar: los más vendidos primero, filtrados por categoría
+let categoriaSel = '';
+function pintarMosaico() {
+  const categorias = [...new Set(db.productos.map((p) => p.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (!categorias.includes(categoriaSel)) categoriaSel = '';
+  $('#categorias').innerHTML = categorias.length
+    ? [['', 'Todos'], ...categorias.map((c) => [c, c])].map(([v, t]) =>
+      `<button type="button" data-categoria="${esc(v)}" class="${v === categoriaSel ? 'activa' : ''}">${esc(t)}</button>`).join('')
+    : '';
+  const vendidos = {};
+  db.ventas.slice(-300).forEach((v) => v.items.forEach((it) => (vendidos[it.productoId] = (vendidos[it.productoId] || 0) + it.cant)));
+  const lista = db.productos
+    .filter((p) => !categoriaSel || p.categoria === categoriaSel)
+    .sort((a, b) => (vendidos[b.id] || 0) - (vendidos[a.id] || 0) || a.nombre.localeCompare(b.nombre))
+    .slice(0, 48);
+  $('#mosaico').innerHTML = lista.map((p) => {
+    const s = num(p.stock);
+    const clase = s <= 0 ? 'agotado' : s <= stockMin(p) ? 'bajo' : '';
+    return `<button type="button" class="prod" data-producto="${p.id}">
+      <span class="inicial" style="--h:${tono(p.categoria)}">${esc((p.nombre.trim()[0] || '?').toUpperCase())}</span>
+      <span class="nombre">${esc(p.nombre)}</span>
+      <span class="pie"><span class="precio">${dinero(p.precio)}</span><span class="stock ${clase}">${s} pzs</span></span>
+    </button>`;
+  }).join('') || `<div class="mosaico-vacio">${ic('package-plus')}<p>Aún no hay productos. Agrégalos en <b>Productos</b> o impórtalos desde Excel.</p></div>`;
+}
+
+$('#categorias').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (d.categoria == null) return;
+  categoriaSel = d.categoria;
+  pintarMosaico();
+});
+$('#mosaico').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (d.producto) agregarAlCarrito(producto(d.producto));
+});
 
 $('#carrito').addEventListener('change', (e) => {
   if (!e.target.classList.contains('cant')) return;
@@ -248,11 +296,18 @@ $('#carrito').addEventListener('change', (e) => {
 });
 
 $('#carrito').addEventListener('click', async (e) => {
-  const quitar = e.target.dataset.quitar;
-  if (quitar != null) { carrito.splice(quitar, 1); pintarVender(); return; }
-  const i = e.target.dataset.precio;
-  if (i == null) return;
-  const l = carrito[i];
+  const d = boton(e);
+  if (d.quitar != null) { carrito.splice(d.quitar, 1); pintarVender(); return; }
+  if (d.mas != null || d.menos != null) {
+    const i = d.mas ?? d.menos;
+    const l = carrito[i];
+    l.cant = redondear(l.cant + (d.mas != null ? 1 : -1));
+    if (l.cant <= 0) carrito.splice(i, 1);
+    pintarVender();
+    return;
+  }
+  if (d.precio == null) return;
+  const l = carrito[d.precio];
   const r = await formulario('Cambiar precio', [
     { nombre: 'precio', etiqueta: `Precio para "${producto(l.productoId).nombre}"`, tipo: 'number', valor: precioLinea(l), requerido: true },
   ]);
@@ -262,11 +317,24 @@ $('#carrito').addEventListener('click', async (e) => {
 
 const pago = $('#pago');
 pago.addEventListener('change', () => {
+  $$('#formas-pago button').forEach((b) => b.classList.toggle('activa', b.dataset.pago === pago.value));
   $('#campo-cliente').hidden = pago.value !== 'credito';
   $('#campo-recibido').hidden = pago.value !== 'efectivo';
   pintarCambio();
 });
 $('#recibido').addEventListener('input', pintarCambio);
+$('#formas-pago').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (!d.pago) return;
+  pago.value = d.pago;
+  pago.dispatchEvent(new Event('change'));
+});
+$('#billetes').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (!d.billete) return;
+  $('#recibido').value = d.billete === 'exacto' ? totalCarrito() : d.billete;
+  pintarCambio();
+});
 
 function pintarCambio() {
   const el = $('#cambio');
@@ -274,7 +342,7 @@ function pintarCambio() {
   el.textContent = '';
   if (pago.value !== 'efectivo' || $('#recibido').value === '') return;
   const dif = num($('#recibido').value) - totalCarrito();
-  el.textContent = dif >= 0 ? `Cambio: ${dinero(dif)}` : `Faltan: ${dinero(-dif)}`;
+  el.innerHTML = dif >= 0 ? `<span>Cambio</span><span>${dinero(dif)}</span>` : `<span>Faltan</span><span>${dinero(-dif)}</span>`;
   el.classList.add(dif >= 0 ? 'ok' : 'falta');
 }
 
@@ -436,18 +504,18 @@ function pintarProductos() {
   const tbody = $('#tabla-productos tbody');
   tbody.innerHTML = lista.slice(0, 500).map((p) => {
     const s = num(p.stock);
-    const clase = s <= 0 ? 'agotado' : s <= stockMin(p) ? 'bajo' : '';
+    const clase = s <= 0 ? 'agotado' : s <= stockMin(p) ? 'bajo' : 'ok';
     return `<tr>
-      <td>${esc(p.codigo)}</td>
+      <td><code>${esc(p.codigo)}</code></td>
       <td>${esc(p.nombre)}${p.categoria ? ` <small class="muted">· ${esc(p.categoria)}</small>` : ''}</td>
       <td>${esc(p.marca)}</td>
       <td class="num">${dinero(p.precio)}</td>
       <td class="num">${num(p.mayoreo) ? `${dinero(p.mayoreo)} <small class="muted">≥${num(p.minMayoreo)}</small>` : '—'}</td>
-      <td class="num ${clase}">${s}</td>
-      <td>
-        <button class="link" data-surtir="${p.id}">+ Surtir</button>
-        <button class="link" data-editar="${p.id}">Editar</button>
-        <button class="link peligro" data-borrar="${p.id}">Borrar</button>
+      <td class="num"><span class="badge ${clase}">${s}</span></td>
+      <td class="acc">
+        <button class="link" data-surtir="${p.id}">${ic('package-plus')}Surtir</button>
+        <button class="btn-icono" data-editar="${p.id}" title="Editar">${ic('pencil')}</button>
+        <button class="btn-icono peligro" data-borrar="${p.id}" title="Borrar">${ic('trash-2')}</button>
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="7" class="vacio">${db.productos.length ? 'Sin resultados' : 'Aún no hay productos. Agrega uno o importa un CSV.'}</td></tr>`;
@@ -484,7 +552,7 @@ async function editarProducto(p) {
 
 $('#btn-nuevo-producto').addEventListener('click', () => editarProducto(null));
 $('#tabla-productos').addEventListener('click', async (e) => {
-  const d = e.target.dataset;
+  const d = boton(e);
   if (d.editar) editarProducto(producto(d.editar));
   if (d.borrar) {
     const p = producto(d.borrar);
@@ -592,14 +660,14 @@ function pintarClientes() {
     .filter((c) => !q || sinAcentos(c.nombre + ' ' + c.telefono).includes(q))
     .sort((a, b) => b.saldo - a.saldo || a.nombre.localeCompare(b.nombre));
   $('#tabla-clientes tbody').innerHTML = lista.map((c) => `<tr>
-      <td>${esc(c.nombre)}</td>
-      <td>${esc(c.telefono)}</td>
-      <td class="num">${num(c.limite) ? dinero(c.limite) : 'Sin límite'}</td>
-      <td class="num ${c.saldo > 0 ? 'debe' : ''}">${dinero(c.saldo)}</td>
-      <td>
-        <button class="link" data-abonar="${c.id}">Abonar</button>
-        <button class="link" data-cuenta="${c.id}">Estado de cuenta</button>
-        <button class="link" data-editar="${c.id}">Editar</button>
+      <td><b>${esc(c.nombre)}</b></td>
+      <td class="muted">${esc(c.telefono)}</td>
+      <td class="num">${num(c.limite) ? dinero(c.limite) : '<span class="badge neutro">Sin límite</span>'}</td>
+      <td class="num">${c.saldo > 0 ? `<span class="debe">${dinero(c.saldo)}</span>` : '<span class="badge ok">Al corriente</span>'}</td>
+      <td class="acc">
+        <button class="link" data-abonar="${c.id}">${ic('hand-coins')}Abonar</button>
+        <button class="btn-icono" data-cuenta="${c.id}" title="Estado de cuenta">${ic('receipt')}</button>
+        <button class="btn-icono" data-editar="${c.id}" title="Editar">${ic('pencil')}</button>
       </td>
     </tr>`).join('') || `<tr><td colspan="5" class="vacio">${db.clientes.length ? 'Sin resultados' : 'Agrega a los clientes a los que les fías.'}</td></tr>`;
   const deuda = db.clientes.reduce((s, c) => s + Math.max(0, c.saldo), 0);
@@ -623,7 +691,7 @@ async function editarCliente(c) {
 $('#btn-nuevo-cliente').addEventListener('click', () => editarCliente(null));
 
 $('#tabla-clientes').addEventListener('click', async (e) => {
-  const d = e.target.dataset;
+  const d = boton(e);
   if (d.editar) editarCliente(cliente(d.editar));
   if (d.abonar) {
     const c = cliente(d.abonar);
@@ -681,20 +749,27 @@ function resumenCaja() {
 function pintarCaja() {
   const r = resumenCaja();
   const tarjetas = [
-    ['Vendido', r.total], ['Efectivo', r.efectivo], ['Tarjeta / transf.', r.tarjeta], ['A crédito', r.credito],
-    ['Abonos en efectivo', r.abonos], ['Entradas', r.entradas], ['Salidas', r.salidas], ['Ganancia estimada', r.ganancia],
-    ['Efectivo en caja', r.esperado],
+    ['Efectivo en caja', dinero(r.esperado), 'wallet', 'destacada'],
+    ['Vendido', dinero(r.total), 'shopping-cart', ''],
+    ['Ventas', r.numVentas, 'receipt', ''],
+    ['Ganancia estimada', dinero(r.ganancia), 'trending-up', 'verde'],
+    ['Efectivo', dinero(r.efectivo), 'banknote', 'verde'],
+    ['Tarjeta / transf.', dinero(r.tarjeta), 'credit-card', ''],
+    ['Fiado', dinero(r.credito), 'notebook-pen', 'ambar'],
+    ['Abonos en efectivo', dinero(r.abonos), 'hand-coins', 'verde'],
+    ['Entradas', dinero(r.entradas), 'circle-arrow-down', ''],
+    ['Salidas', dinero(r.salidas), 'circle-arrow-up', 'rojo'],
   ];
-  $('#tarjetas-caja').innerHTML = tarjetas.map(([t, v]) => `<div class="tarjeta"><span>${t}</span><strong>${dinero(v)}</strong></div>`).join('') +
-    `<div class="tarjeta"><span>Ventas</span><strong>${r.numVentas}</strong></div>`;
+  $('#tarjetas-caja').innerHTML = tarjetas.map(([t, v, icono, clase]) =>
+    `<div class="tarjeta ${clase}"><div class="ico">${ic(icono)}</div><div><span>${t}</span><strong>${v}</strong></div></div>`).join('');
 
   $('#tabla-ventas tbody').innerHTML = [...r.ventas].reverse().map((v) => `<tr class="${v.cancelada ? 'cancelada' : ''}">
-      <td>#${v.folio}</td><td>${hora(v.fecha)}</td><td>${NOMBRE_PAGO[v.pago]}</td>
+      <td><b>#${v.folio}</b></td><td class="muted">${hora(v.fecha)}</td><td><span class="badge ${v.pago === 'credito' ? 'bajo' : v.pago === 'efectivo' ? 'ok' : 'neutro'}">${NOMBRE_PAGO[v.pago]}</span></td>
       <td>${esc(v.clienteId ? cliente(v.clienteId)?.nombre : '')}</td>
       <td class="num">${dinero(v.total)}</td>
-      <td>
-        <button class="link" data-reimprimir="${v.id}">Ticket</button>
-        ${v.cancelada ? '' : `<button class="link peligro" data-cancelar="${v.id}">Cancelar</button>`}
+      <td class="acc">
+        <button class="btn-icono" data-reimprimir="${v.id}" title="Imprimir ticket">${ic('printer')}</button>
+        ${v.cancelada ? '' : `<button class="btn-icono peligro" data-cancelar="${v.id}" title="Cancelar venta">${ic('x')}</button>`}
       </td>
     </tr>`).join('') || '<tr><td colspan="6" class="vacio">Sin ventas desde el último corte</td></tr>';
 
@@ -706,7 +781,7 @@ function pintarCaja() {
 }
 
 $('#tabla-ventas').addEventListener('click', (e) => {
-  const d = e.target.dataset;
+  const d = boton(e);
   if (d.reimprimir) imprimirTicket(db.ventas.find((v) => v.id === d.reimprimir));
   if (d.cancelar) {
     const v = db.ventas.find((x) => x.id === d.cancelar);
@@ -788,6 +863,25 @@ $('#archivo-respaldo').addEventListener('change', async (e) => {
 function pintarMarca() {
   $('#marca').textContent = db.ajustes.negocio || 'Punto de Venta';
   document.title = (db.ajustes.negocio ? db.ajustes.negocio + ' · ' : '') + 'Punto de Venta';
+}
+
+// ---------- Instalar como app (Chrome/Edge) y uso sin internet ----------
+let instalacion = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  instalacion = e;
+  $('#btn-instalar').hidden = false;
+});
+$('#btn-instalar').addEventListener('click', async () => {
+  if (!instalacion) return;
+  instalacion.prompt();
+  await instalacion.userChoice;
+  instalacion = null;
+  $('#btn-instalar').hidden = true;
+});
+window.addEventListener('appinstalled', () => { $('#btn-instalar').hidden = true; aviso('App instalada'); });
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 pintarMarca();

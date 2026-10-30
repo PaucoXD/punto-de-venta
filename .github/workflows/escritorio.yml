@@ -1,0 +1,41 @@
+# Construye el instalador de Windows.
+# - En los PR y al correrlo a mano (Actions → Instalador de escritorio → Run workflow) deja el .exe en "Artifacts".
+# - Al crear una etiqueta v1.0.1, v1.0.2… lo publica en Releases junto con latest.yml,
+#   y las apps instaladas se actualizan solas desde ahí.
+name: Instalador de escritorio
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['electron/**', 'package.json', 'package-lock.json', '.github/workflows/escritorio.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Poner la versión de la etiqueta
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+      - name: Construir
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        run: npm run instalador
+      - name: Construir y publicar en Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run publicar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: dist/*.exe
