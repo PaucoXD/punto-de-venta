@@ -82,7 +82,7 @@
 
     <section class="panel form" id="historial-panel" hidden>
       <h3>Licencias que has dado</h3>
-      <div class="tabla-wrap"><table class="tabla historial"><thead><tr><th>Fecha</th><th>Negocio</th><th>Equipo</th><th>Vence</th></tr></thead><tbody id="historial"></tbody></table></div>
+      <div class="tabla-wrap"><table class="tabla historial"><thead><tr><th>Fecha</th><th>Negocio</th><th>Equipo</th><th>Vence</th><th></th></tr></thead><tbody id="historial"></tbody></table></div>
     </section>
   </div>
   <div id="aviso" class="aviso" hidden></div>
@@ -120,8 +120,8 @@
     if (!hay) return;
     $('#publica').value = textoPublica();
     $('#aviso-publica').hidden = LLAVE_DE_LA_APP === textoPublica();
-    $('#historial').innerHTML = [...(datos.historial || [])].reverse().map((h) =>
-      `<tr><td>${esc(h.f)}</td><td>${esc(h.n)}${h.t === 'rescate' ? ' <span class="badge neutro">rescate</span>' : ''}</td><td><code>${esc(h.e.slice(0, 4) + "-" + h.e.slice(4))}</code></td><td>${esc(h.h || 'Nunca')}</td></tr>`).join('');
+    $('#historial').innerHTML = (datos.historial || []).map((h, i) => [h, i]).reverse().map(([h, i]) =>
+      `<tr><td>${esc(h.f)}</td><td>${esc(h.n)}${h.t === 'rescate' ? ' <span class="badge neutro">rescate</span>' : ''}</td><td><code>${esc(h.e.slice(0, 4) + "-" + h.e.slice(4))}</code></td><td>${esc(h.h || 'Nunca')}</td><td><button type="button" class="btn-icono peligro" data-borrar="${i}" title="Borrar de la lista">✕</button></td></tr>`).join('');
   }
 
   $('#btn-crear').addEventListener('click', async () => {
@@ -147,6 +147,14 @@
     e.target.value = '';
   });
   $('#btn-respaldo').addEventListener('click', descargarRespaldo);
+  // Solo quita la fila de esta lista: la licencia que ya se mandó sigue funcionando hasta que vence
+  $('#historial').addEventListener('click', (e) => {
+    const i = e.target.closest('button')?.dataset.borrar;
+    if (i == null || !confirm('¿Quitar esta licencia de la lista? Si ya la mandaste, sigue funcionando hasta que venza.')) return;
+    datos.historial.splice(Number(i), 1);
+    escribir(datos);
+    pintar();
+  });
   const copiar = async (t) => { try { await navigator.clipboard.writeText(t); aviso('Copiado'); } catch (e) { aviso('Selecciónalo y cópialo a mano'); } };
   $('#btn-copiar-publica').addEventListener('click', () => copiar(textoPublica()));
   $('#btn-copiar-clave').addEventListener('click', () => copiar($('#clave').value));
