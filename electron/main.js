@@ -65,7 +65,11 @@ autoUpdater.on('update-available', (info) => {
 autoUpdater.on('error', (err) => {
   if (!buscandoAMano) return; // sin internet al revisar solo, no molestamos
   buscandoAMano = false;
-  dialog.showMessageBox(ventana, { type: 'warning', title: 'No se pudo revisar', message: 'No se pudo buscar actualizaciones. Revisa tu conexión a internet.', detail: String(err?.message || err) });
+  // Un 404 quiere decir que alcanzó la versión nueva a medio publicar, no que falte internet
+  const subiendo = /404/.test(String(err?.message || err));
+  dialog.showMessageBox(ventana, subiendo
+    ? { type: 'info', title: 'Versión nueva en camino', message: 'Se está publicando una versión nueva. Vuelve a buscar en unos minutos.' }
+    : { type: 'warning', title: 'No se pudo revisar', message: 'No se pudo buscar actualizaciones. Revisa tu conexión a internet.', detail: String(err?.message || err) });
 });
 
 function buscarActualizaciones(aMano = false) {
