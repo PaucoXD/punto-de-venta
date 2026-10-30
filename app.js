@@ -860,7 +860,7 @@ function pintarCaja() {
     `<div class="tarjeta ${clase}"><div class="ico">${ic(icono)}</div><div><span>${t}</span><strong>${v}</strong></div></div>`).join('');
 
   $('#tabla-ventas tbody').innerHTML = [...r.ventas].reverse().map((v) => `<tr class="${v.cancelada ? 'cancelada' : ''}">
-      <td><b>#${v.folio}</b></td><td class="muted">${hora(v.fecha)}</td><td><span class="badge ${v.pago === 'credito' ? 'bajo' : v.pago === 'efectivo' ? 'ok' : 'neutro'}">${NOMBRE_PAGO[v.pago]}</span></td>
+      <td><b>#${v.folio}</b></td><td class="muted">${hora(v.fecha)}</td><td><span class="badge ${v.pago === 'credito' ? 'bajo' : v.pago === 'efectivo' ? 'ok' : 'neutro'}">${NOMBRE_PAGO[v.pago]}</span>${v.referencia ? ` <small class="muted">Ref. ${esc(v.referencia)}</small>` : ''}</td>
       <td>${esc(v.clienteId ? cliente(v.clienteId)?.nombre : '')}</td>
       <td class="muted">${esc(v.usuario || '')}</td>
       <td class="num">${dinero(v.total)}</td>
@@ -1039,6 +1039,23 @@ function pintarReportes() {
       <small class="muted">${r.total ? Math.round(p.total / r.total * 100) : 0}%</small>
     </div>`).join('');
 
+  // Pagos con tarjeta: para cuadrar contra lo que deposita la terminal
+  const conTarjeta = r.ventas.filter((v) => v.pago === 'tarjeta').sort((a, b) => b.fecha - a.fecha);
+  const pct = num(db.ajustes.comisionTarjeta);
+  const sumaTarjeta = conTarjeta.reduce((s, v) => s + v.total, 0);
+  $('#resumen-tarjeta').textContent = conTarjeta.length
+    ? `${conTarjeta.length} cobro${conTarjeta.length === 1 ? '' : 's'} · ${dinero(sumaTarjeta)}` +
+      (pct ? ` · comisión ${pct}%: ${dinero(sumaTarjeta * pct / 100)} · te depositan ${dinero(sumaTarjeta * (1 - pct / 100))}` : ' · pon la comisión de tu terminal en Ajustes para ver cuánto te depositan')
+    : '';
+  $('#tabla-tarjeta tbody').innerHTML = conTarjeta.map((v) => `<tr>
+      <td><b>#${v.folio}</b></td><td class="muted">${fecha(v.fecha)}</td>
+      <td>${v.referencia ? `<code>${esc(v.referencia)}</code>` : '<span class="muted">Sin referencia</span>'}</td>
+      <td>${esc(v.usuario || '')}</td>
+      <td class="num">${dinero(v.total)}</td>
+      ${pct ? `<td class="num muted">−${dinero(v.total * pct / 100)}</td>` : ''}
+    </tr>`).join('') || '<tr><td colspan="6" class="vacio">Sin pagos con tarjeta en este periodo</td></tr>';
+  $('#th-comision').hidden = !pct;
+
   $('#tabla-cajeros tbody').innerHTML = r.cajeros.sort((a, b) => b.total - a.total).map((c) => `<tr>
       <td>${esc(c.nombre)}</td><td class="num">${c.ventas}</td><td class="num">${dinero(c.total)}</td>
       <td class="num">${c.canceladas ? `<span class="badge agotado">${c.canceladas}</span>` : '0'}</td></tr>`).join('') ||
@@ -1079,9 +1096,9 @@ $('#orden-productos').addEventListener('click', (e) => {
 });
 $('#btn-exportar-reporte').addEventListener('click', () => {
   const r = datosReporte();
-  const filas = [['Folio', 'Fecha', 'Forma de pago', 'Cliente', 'Atendió', 'Producto', 'Código', 'Piezas', 'Precio', 'Costo', 'Importe', 'Cancelada']];
+  const filas = [['Folio', 'Fecha', 'Forma de pago', 'Referencia', 'Cliente', 'Atendió', 'Producto', 'Código', 'Piezas', 'Precio', 'Costo', 'Importe', 'Cancelada']];
   r.enRango.forEach((v) => v.items.forEach((it) => filas.push([
-    v.folio, fecha(v.fecha), NOMBRE_PAGO[v.pago], v.clienteId ? cliente(v.clienteId)?.nombre : '', v.usuario || '',
+    v.folio, fecha(v.fecha), NOMBRE_PAGO[v.pago], v.referencia || '', v.clienteId ? cliente(v.clienteId)?.nombre : '', v.usuario || '',
     it.nombre, it.codigo, it.cant, it.precio, it.costo, redondear(it.precio * it.cant), v.cancelada ? 'Sí' : '',
   ])));
   descargar(`ventas-${isoDia(r.desde)}-a-${isoDia(new Date(r.hasta - 1))}.csv`, '﻿' + filas.map((f) => f.map(csvCelda).join(',')).join('\n'), 'text/csv');
