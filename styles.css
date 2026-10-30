@@ -59,6 +59,8 @@ body {
   padding: 8px 12px;
   border-radius: 8px;
 }
+.instalar { margin-left: auto; background: #69bf4a; color: #0b1a3a; font-weight: 600; }
+.instalar:hover { background: #7ccf5c; }
 .tabs button.activa, .tabs button:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
 
 main { padding: 16px; max-width: 1280px; margin: 0 auto; }

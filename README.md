@@ -19,4 +19,16 @@ Guarda la hoja como CSV con una fila de encabezados. Se reconocen estas columnas
 
 ## Uso
 
-Abre `index.html` en el navegador o publícalo con GitHub Pages.
+- **En el navegador**: https://paucoxd.github.io/punto-de-venta/ (o abre `index.html`). Funciona sin internet después de la primera vez.
+- **Instalada desde el navegador**: en Chrome o Edge aparece el botón verde **⬇ Instalar en este equipo**. Queda como app con su ícono en el escritorio y el menú Inicio.
+- **App de escritorio para Windows (.exe)**: en la pestaña **Actions → Instalador de escritorio → Run workflow** se construye el instalador; se descarga desde *Artifacts* al terminar. Si creas una etiqueta `v1.0.1` (o la que sigue), el instalador también se publica en **Releases**.
+
+Cada forma de abrirla guarda sus propios datos. Para pasar los datos de una a otra usa *Ajustes → Descargar respaldo* y *Restaurar respaldo*.
+
+### Para desarrollar la versión de escritorio
+
+```
+npm install
+npm run escritorio   # abre la app en una ventana
+npm run instalador   # crea el .exe en dist/ (en Windows)
+```

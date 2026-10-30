@@ -790,5 +790,24 @@ function pintarMarca() {
   document.title = (db.ajustes.negocio ? db.ajustes.negocio + ' · ' : '') + 'Punto de Venta';
 }
 
+// ---------- Instalar como app (Chrome/Edge) y uso sin internet ----------
+let instalacion = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  instalacion = e;
+  $('#btn-instalar').hidden = false;
+});
+$('#btn-instalar').addEventListener('click', async () => {
+  if (!instalacion) return;
+  instalacion.prompt();
+  await instalacion.userChoice;
+  instalacion = null;
+  $('#btn-instalar').hidden = true;
+});
+window.addEventListener('appinstalled', () => { $('#btn-instalar').hidden = true; aviso('App instalada'); });
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
 pintarMarca();
 pintarVender();
