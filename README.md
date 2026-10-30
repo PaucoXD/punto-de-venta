@@ -15,6 +15,8 @@ Punto de venta web para tienditas, distribuidoras y refaccionarias. Funciona sin
 - **Clientes**: saldo, abonos y estado de cuenta.
 - **Caja**: entradas y salidas de efectivo, ventas del turno, cancelación de ventas (regresa el inventario), ganancia estimada y corte de caja con diferencia.
 - **Respaldo**: descarga y restaura todos los datos en un archivo.
+- **Usuarios con PIN**: el dueño puede todo; los cajeros solo venden, cobran, dan abonos y hacen corte. No ven Productos, Ajustes ni la ganancia, y para cambiar un precio o cancelar una venta piden el PIN del dueño. Cada venta y corte guarda quién lo hizo. Sin usuarios, la app no pide PIN.
+- **Licencia**: 15 días de prueba gratis. Después hay que activar una licencia para seguir cobrando (los datos se pueden seguir viendo).
 
 ## Importar productos desde Excel
 
@@ -44,6 +46,20 @@ npm install
 npm run escritorio   # abre la app en una ventana
 npm run instalador   # crea el .exe en dist/ (en Windows)
 ```
+
+## Licencias (para quien vende el sistema)
+
+Cada equipo tiene un **código de equipo** (en *Ajustes → Licencia*, ej. `K7F2-9QXA`). La licencia es una clave firmada que solo funciona en ese equipo, así que no sirve copiarla a otra computadora.
+
+Para dar una licencia:
+
+1. El negocio te manda su código de equipo.
+2. En GitHub: **Actions → Generar licencia → Run workflow**. Pon el nombre del negocio, el código y por cuántos meses (o *Sin vencimiento*).
+3. Abre la ejecución cuando termine: la clave `PDV-…` sale en el resumen. Mándasela al negocio y la pega en *Ajustes → Licencia → Activar*.
+
+Si un dueño olvida su PIN, genera lo mismo con **¿Qué generar? → rescate**. Esa llave vale 3 días y en la pantalla de entrada se usa con *Olvidé mi PIN*.
+
+La firma usa una llave privada guardada en el secreto `LICENCIA_LLAVE_PRIVADA` (Settings → Secrets and variables → Actions). Nunca la subas al repositorio: con ella cualquiera podría hacer licencias. La llave pública está en `app.js` (`LLAVE_PUBLICA`); si cambias de llaves con `node herramientas/licencia.mjs llaves`, las licencias anteriores dejan de servir.
 
 ## Créditos
 

@@ -11,6 +11,7 @@ const vacio = () => ({
   abonos: [],
   movimientos: [], // entradas y salidas de efectivo
   cortes: [],
+  usuarios: [], // { id, nombre, rol: 'dueno' | 'cajero', pin (hash), sal }
   folio: 0,
   siguienteCodigo: 1, // para los códigos de barras que genera la app
 });
@@ -63,6 +64,7 @@ function aviso(texto) {
 
 // ---------- Navegación ----------
 function mostrarVista(nombre) {
+  if (!esDueno() && SOLO_DUENO.includes(nombre)) nombre = 'vender';
   $$('#tabs button').forEach((b) => b.classList.toggle('activa', b.dataset.vista === nombre));
   $$('.vista').forEach((v) => v.classList.toggle('activa', v.id === 'vista-' + nombre));
   ({ vender: pintarVender, productos: pintarProductos, clientes: pintarClientes, caja: pintarCaja, ajustes: pintarAjustes })[nombre]();
@@ -104,6 +106,7 @@ function formulario(titulo, campos, textoOk = 'Guardar', textoCancelar = 'Cancel
       input = document.createElement('input');
       input.type = c.tipo || 'text';
       if (c.tipo === 'number') { input.step = c.paso || '0.01'; input.inputMode = 'decimal'; }
+      if (c.tipo === 'password') { input.inputMode = 'numeric'; input.autocomplete = 'off'; }
       input.value = c.valor ?? '';
     }
     input.name = c.nombre;
@@ -329,6 +332,7 @@ $('#carrito').addEventListener('click', async (e) => {
     return;
   }
   if (d.precio == null) return;
+  if (!(await autorizar('cambiar el precio'))) return;
   const l = carrito[d.precio];
   const r = await formulario('Cambiar precio', [
     { nombre: 'precio', etiqueta: `Precio para "${producto(l.productoId).nombre}"`, tipo: 'number', valor: precioLinea(l), requerido: true },
@@ -387,6 +391,11 @@ function limpiarVenta() {
 
 async function cobrar() {
   if (!carrito.length) return aviso('No hay productos en la venta');
+  if (!estadoLicencia().ok) {
+    aviso(esDueno() ? 'Activa tu licencia para seguir cobrando' : 'La licencia venció: avisa al dueño');
+    if (esDueno()) mostrarVista('ajustes');
+    return;
+  }
   const total = totalCarrito();
   const forma = pago.value;
   let recibido = total;
@@ -419,6 +428,7 @@ async function cobrar() {
     clienteId,
     referencia: forma === 'tarjeta' ? $('#referencia').value.trim() : '',
     cancelada: false,
+    usuario: usuarioActual()?.nombre || '',
   };
   venta.items.forEach((it) => { const p = producto(it.productoId); p.stock = redondear(num(p.stock) - it.cant); });
   if (clienteId) { const c = cliente(clienteId); c.saldo = redondear(c.saldo + total); }
@@ -435,7 +445,7 @@ async function cobrar() {
 $('#btn-cobrar').addEventListener('click', cobrar);
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'F2' && $('#vista-vender').classList.contains('activa')) { e.preventDefault(); cobrar(); }
+  if (e.key === 'F2' && $('#vista-vender').classList.contains('activa') && $('#bloqueo').hidden) { e.preventDefault(); cobrar(); }
 });
 
 // ---------- Ticket ----------
@@ -452,6 +462,7 @@ function imprimirTicket(v) {
     <div>Folio: ${v.folio}${v.cancelada ? ' (CANCELADA)' : ''}</div>
     <div>${fecha(v.fecha)}</div>
     ${c ? `<div>Cliente: ${esc(c.nombre)}</div>` : ''}
+    ${v.usuario ? `<div>Le atendió: ${esc(v.usuario)}</div>` : ''}
     <hr>
     <table>${v.items.map((it) => `
       <tr><td colspan="2">${esc(it.nombre)}</td></tr>
@@ -813,7 +824,7 @@ function pintarCaja() {
     ['Efectivo en caja', dinero(r.esperado), 'wallet', 'destacada'],
     ['Vendido', dinero(r.total), 'shopping-cart', ''],
     ['Ventas', r.numVentas, 'receipt', ''],
-    ['Ganancia estimada', dinero(r.ganancia), 'trending-up', 'verde'],
+    ...(esDueno() ? [['Ganancia estimada', dinero(r.ganancia), 'trending-up', 'verde']] : []),
     ['Efectivo', dinero(r.efectivo), 'banknote', 'verde'],
     ['Tarjeta / transf.', dinero(r.tarjeta), 'credit-card', ''],
     ...(num(db.ajustes.comisionTarjeta) ? [[`Comisión tarjeta (${num(db.ajustes.comisionTarjeta)}%)`, dinero(r.comision), 'credit-card', 'rojo']] : []),
@@ -828,12 +839,13 @@ function pintarCaja() {
   $('#tabla-ventas tbody').innerHTML = [...r.ventas].reverse().map((v) => `<tr class="${v.cancelada ? 'cancelada' : ''}">
       <td><b>#${v.folio}</b></td><td class="muted">${hora(v.fecha)}</td><td><span class="badge ${v.pago === 'credito' ? 'bajo' : v.pago === 'efectivo' ? 'ok' : 'neutro'}">${NOMBRE_PAGO[v.pago]}</span></td>
       <td>${esc(v.clienteId ? cliente(v.clienteId)?.nombre : '')}</td>
+      <td class="muted">${esc(v.usuario || '')}</td>
       <td class="num">${dinero(v.total)}</td>
       <td class="acc">
         <button class="btn-icono" data-reimprimir="${v.id}" title="Imprimir ticket">${ic('printer')}</button>
         ${v.cancelada ? '' : `<button class="btn-icono peligro" data-cancelar="${v.id}" title="Cancelar venta">${ic('x')}</button>`}
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" class="vacio">Sin ventas desde el último corte</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" class="vacio">Sin ventas desde el último corte</td></tr>';
 
   $('#tabla-cortes tbody').innerHTML = [...db.cortes].reverse().slice(0, 30).map((c) => `<tr>
       <td>${fecha(c.fecha)}</td><td class="num">${dinero(c.total)}</td><td class="num">${dinero(c.esperado)}</td>
@@ -842,11 +854,12 @@ function pintarCaja() {
     </tr>`).join('') || '<tr><td colspan="5" class="vacio">Aún no hay cortes</td></tr>';
 }
 
-$('#tabla-ventas').addEventListener('click', (e) => {
+$('#tabla-ventas').addEventListener('click', async (e) => {
   const d = boton(e);
   if (d.reimprimir) imprimirTicket(db.ventas.find((v) => v.id === d.reimprimir));
   if (d.cancelar) {
     const v = db.ventas.find((x) => x.id === d.cancelar);
+    if (!(await autorizar('cancelar una venta'))) return;
     if (!confirm(`¿Cancelar la venta #${v.folio}? Los productos regresan al inventario.`)) return;
     v.cancelada = true;
     v.items.forEach((it) => { const p = producto(it.productoId); if (p) p.stock = redondear(num(p.stock) + it.cant); });
@@ -877,7 +890,7 @@ $('#btn-corte').addEventListener('click', async () => {
   ], 'Cerrar corte');
   if (!f) return;
   const { ventas, ...datos } = r;
-  db.cortes.push(Object.assign(datos, { id: id(), fecha: Date.now(), contado: num(f.contado) }));
+  db.cortes.push(Object.assign(datos, { id: id(), fecha: Date.now(), contado: num(f.contado), usuario: usuarioActual()?.nombre || '' }));
   guardar();
   pintarCaja();
   const dif = num(f.contado) - r.esperado;
@@ -1033,6 +1046,8 @@ $('#btn-etiquetas').addEventListener('click', () => imprimirEtiquetas(productosF
 function pintarAjustes() {
   const f = $('#form-ajustes');
   Object.entries(db.ajustes).forEach(([k, v]) => { if (f.elements[k]) f.elements[k].value = v; });
+  pintarLicencia();
+  pintarUsuarios();
 }
 $('#form-ajustes').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1066,6 +1081,8 @@ $('#archivo-respaldo').addEventListener('change', async (e) => {
     await restaurarFotos(fotosRespaldo || {});
     pintarMarca();
     aviso('Respaldo restaurado');
+    if (db.usuarios.length && !usuarioActual()) return bloquear();
+    aplicarPermisos();
     mostrarVista('ajustes');
   } catch (err) {
     aviso('Ese archivo no es un respaldo válido');
@@ -1076,6 +1093,315 @@ function pintarMarca() {
   $('#marca').textContent = db.ajustes.negocio || 'Punto de Venta';
   document.title = (db.ajustes.negocio ? db.ajustes.negocio + ' · ' : '') + 'Punto de Venta';
 }
+
+// ---------- Licencia ----------
+// Sin licencia la app se puede usar PRUEBA_DIAS días. La licencia es una clave firmada con la llave
+// privada del proveedor (ver herramientas/licencia.mjs) y solo vale en el equipo con ese código.
+// Se guarda aparte de los datos para que un respaldo no la lleve a otro equipo.
+const LLAVE_PUBLICA = { kty: 'EC', crv: 'P-256', x: '30nqUJ9uMZwUO6jBHtdXlLzdLVUaCWWPf04S4KiWlIM', y: 'qi__-R3KUB3CKw1vTsqSuKc1Cn_uKXqoDYi9FIS3utE' };
+const PRUEBA_DIAS = 15;
+const CLAVE_LICENCIA = 'pdv-licencia-v1';
+const DIA = 864e5;
+
+const lic = (() => {
+  let l = null;
+  try { l = JSON.parse(localStorage.getItem(CLAVE_LICENCIA)); } catch (e) { /* sin acceso */ }
+  if (!l || !l.equipo) {
+    // Sin letras que se confunden (0/O, 1/I/L) porque el código se dicta por teléfono
+    const letras = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const azar = crypto.getRandomValues(new Uint8Array(8));
+    l = { equipo: [...azar].map((n) => letras[n % letras.length]).join(''), inicio: Date.now(), visto: Date.now(), clave: '' };
+  }
+  return l;
+})();
+let licencia = null; // datos de la clave ya revisada
+const guardarLicencia = () => { try { localStorage.setItem(CLAVE_LICENCIA, JSON.stringify(lic)); } catch (e) { /* sin acceso */ } };
+guardarLicencia();
+const codigoEquipo = () => lic.equipo.slice(0, 4) + '-' + lic.equipo.slice(4);
+
+// Si atrasan el reloj de la computadora, seguimos contando desde la fecha más alta que vimos
+function ahora() {
+  if (Date.now() > lic.visto) { lic.visto = Date.now(); guardarLicencia(); }
+  return lic.visto;
+}
+const finDelDia = (iso) => new Date(iso + 'T23:59:59').getTime();
+const desde64 = (t) => Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+async function leerClave(clave, tipo, revisarFecha = true) {
+  const m = /^PDV-([\w-]+)\.([\w-]+)$/.exec(String(clave).replace(/\s/g, ''));
+  if (!m) throw new Error('La clave está incompleta. Cópiala otra vez completa.');
+  if (!crypto.subtle) throw new Error('Este navegador no puede revisar la clave. Usa la app instalada.');
+  let datos;
+  try {
+    const llave = await crypto.subtle.importKey('jwk', LLAVE_PUBLICA, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const texto = desde64(m[1]);
+    if (!(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, llave, desde64(m[2]), texto))) throw new Error();
+    datos = JSON.parse(new TextDecoder().decode(texto));
+  } catch (e) {
+    throw new Error('La clave no es válida. Revisa que esté completa.');
+  }
+  if (datos.t !== tipo) throw new Error(tipo === 'licencia' ? 'Esa es una llave de rescate, no una licencia.' : 'Esa es una licencia, no una llave de rescate.');
+  if (datos.e !== lic.equipo) throw new Error(`Esta clave es para otro equipo. El código de este es ${codigoEquipo()}.`);
+  if (revisarFecha && datos.h && finDelDia(datos.h) < ahora()) throw new Error(`Esta clave venció el ${datos.h}.`);
+  return datos;
+}
+
+async function cargarLicencia() {
+  if (lic.clave) {
+    try { licencia = await leerClave(lic.clave, 'licencia', false); } catch (e) { licencia = null; }
+  }
+  pintarLicencia();
+}
+
+// ok: se puede cobrar · dias: días que quedan (null = sin vencimiento)
+function estadoLicencia() {
+  if (licencia) {
+    if (!licencia.h) return { ok: true, tipo: 'licencia', dias: null };
+    const dias = Math.ceil((finDelDia(licencia.h) - ahora()) / DIA);
+    return { ok: dias > 0, tipo: 'licencia', dias };
+  }
+  const dias = PRUEBA_DIAS - Math.floor((ahora() - lic.inicio) / DIA);
+  return { ok: dias > 0, tipo: 'prueba', dias };
+}
+
+function pintarLicencia() {
+  const e = estadoLicencia();
+  const banda = $('#banda-licencia');
+  const plural = (n) => `${n} día${n === 1 ? '' : 's'}`;
+  let texto = '';
+  if (!e.ok) texto = e.tipo === 'prueba' ? 'Terminó la prueba gratis.' : 'Tu licencia venció.';
+  else if (e.tipo === 'prueba') texto = `Versión de prueba: te ${e.dias === 1 ? 'queda' : 'quedan'} ${plural(e.dias)}.`;
+  else if (e.dias != null && e.dias <= 7) texto = `Tu licencia vence en ${plural(e.dias)}.`;
+  banda.hidden = !texto;
+  banda.className = 'banda-licencia' + (e.ok ? '' : ' bloqueada');
+  if (texto) {
+    banda.innerHTML = `${ic(e.ok ? 'key-round' : 'lock')}<span>${texto}${e.ok ? '' : ' Puedes ver tus datos, pero no cobrar.'}</span>` +
+      (esDueno() ? '<button class="sec" data-ir-licencia>Activar licencia</button>' : '<span class="muted">Avisa al dueño.</span>');
+  }
+
+  const panel = $('#estado-licencia');
+  if (!panel) return;
+  const estado = licencia
+    ? `<span class="badge ${e.ok ? 'ok' : 'agotado'}">${e.ok ? 'Activa' : 'Vencida'}</span> ${esc(licencia.n)} · ${licencia.h ? `${e.ok ? 'vence' : 'venció'} el ${licencia.h}` : 'sin vencimiento'}`
+    : `<span class="badge ${e.ok ? 'bajo' : 'agotado'}">${e.ok ? 'Prueba' : 'Prueba terminada'}</span> ${e.ok ? `quedan ${plural(e.dias)}` : 'activa una licencia para seguir cobrando'}`;
+  panel.innerHTML = estado;
+  $('#codigo-equipo').textContent = codigoEquipo();
+}
+
+$('#banda-licencia').addEventListener('click', (e) => {
+  if (boton(e).irLicencia == null) return;
+  mostrarVista('ajustes');
+  $('#clave-licencia').focus();
+});
+$('#btn-copiar-equipo').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(codigoEquipo()); aviso('Código copiado'); } catch (e) { aviso(`El código es ${codigoEquipo()}`); }
+});
+$('#form-licencia').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const clave = $('#clave-licencia').value.trim();
+  try {
+    licencia = await leerClave(clave, 'licencia');
+    lic.clave = clave.replace(/\s/g, '');
+    guardarLicencia();
+    $('#clave-licencia').value = '';
+    pintarLicencia();
+    aviso(`Licencia activada para ${licencia.n}`);
+  } catch (err) {
+    aviso(err.message);
+  }
+});
+
+// ---------- Usuarios y permisos ----------
+// Sin usuarios la app no pide PIN (como siempre). Al crear el primero, que es el dueño,
+// la app pide entrar con PIN al abrirse. Los cajeros no ven Productos ni Ajustes ni la ganancia,
+// y para cambiar un precio o cancelar una venta piden el PIN de un dueño.
+const SOLO_DUENO = ['productos', 'ajustes'];
+const ROLES = { dueno: 'Dueño', cajero: 'Cajero' };
+let sesionId = null;
+const usuarioActual = () => db.usuarios.find((u) => u.id === sesionId) || null;
+const esDueno = () => !db.usuarios.length || usuarioActual()?.rol === 'dueno';
+const pinValido = (pin) => /^\d{4,6}$/.test(pin);
+
+async function hashPin(pin, sal) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sal + ':' + pin));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+const revisarPin = async (u, pin) => u.pin === (await hashPin(pin, u.sal));
+async function ponerPin(u, pin) { u.sal = id(); u.pin = await hashPin(pin, u.sal); }
+
+function aplicarPermisos() {
+  const u = usuarioActual();
+  $$('#tabs button').forEach((b) => (b.hidden = !esDueno() && SOLO_DUENO.includes(b.dataset.vista)));
+  $('#usuario-actual').hidden = !u;
+  if (u) {
+    $('#usuario-inicial').textContent = u.nombre.trim().charAt(0).toUpperCase();
+    $('#usuario-nombre').textContent = u.nombre;
+    $('#usuario-rol').textContent = ROLES[u.rol];
+  }
+  const activa = $('#tabs button.activa');
+  if (activa?.hidden) mostrarVista('vender');
+  pintarLicencia();
+}
+
+// Pide el PIN de un dueño cuando un cajero quiere hacer algo delicado
+async function autorizar(accion) {
+  if (esDueno()) return true;
+  const r = await formulario('Permiso del dueño', [
+    { tipo: 'texto', valor: `Para ${accion} se necesita el PIN de un dueño.` },
+    { nombre: 'pin', etiqueta: 'PIN del dueño', tipo: 'password', requerido: true },
+  ], 'Autorizar');
+  if (!r) return false;
+  for (const u of db.usuarios.filter((x) => x.rol === 'dueno')) {
+    if (await revisarPin(u, r.pin)) return true;
+  }
+  aviso('PIN incorrecto');
+  return false;
+}
+
+// Pantalla de entrada
+let elegido = null;
+function bloquear() {
+  sesionId = null;
+  elegido = db.usuarios.length === 1 ? db.usuarios[0].id : null;
+  if (document.querySelector('dialog[open]')) $$('dialog[open]').forEach((d) => d.close());
+  pintarBloqueo();
+  $('#bloqueo').hidden = false;
+  $('#pin').focus();
+}
+function pintarBloqueo() {
+  $('#bloqueo-negocio').textContent = db.ajustes.negocio || 'Punto de Venta';
+  $('#bloqueo-usuarios').innerHTML = [...db.usuarios]
+    .sort((a, b) => (a.rol === b.rol ? a.nombre.localeCompare(b.nombre) : a.rol === 'dueno' ? -1 : 1))
+    .map((u) => `<button type="button" class="quien ${u.id === elegido ? 'activa' : ''}" data-quien="${u.id}">
+      <span class="avatar">${esc(u.nombre.trim().charAt(0).toUpperCase())}</span><span>${esc(u.nombre)}<small>${ROLES[u.rol]}</small></span></button>`).join('');
+  $('#pin').value = '';
+  pintarPuntos();
+}
+const pintarPuntos = () => {
+  const n = $('#pin').value.length;
+  $('#pin-puntos').innerHTML = Array.from({ length: Math.max(4, n) }, (_, i) => `<i class="${i < n ? 'lleno' : ''}"></i>`).join('');
+};
+
+$('#bloqueo-usuarios').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (!d.quien) return;
+  elegido = d.quien;
+  pintarBloqueo();
+  $('#pin').focus();
+});
+$('#pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); pintarPuntos(); });
+$('#teclado').addEventListener('click', (e) => {
+  const d = boton(e);
+  const pin = $('#pin');
+  if (d.tecla != null) pin.value = (pin.value + d.tecla).slice(0, 6);
+  if (d.borrar != null) pin.value = pin.value.slice(0, -1);
+  pintarPuntos();
+  pin.focus();
+});
+$('#form-entrar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const u = db.usuarios.find((x) => x.id === elegido);
+  if (!u) return aviso('Toca tu nombre primero');
+  if (!(await revisarPin(u, $('#pin').value))) {
+    $('#form-entrar').classList.remove('error');
+    void $('#form-entrar').offsetWidth;
+    $('#form-entrar').classList.add('error');
+    $('#pin').value = '';
+    pintarPuntos();
+    return aviso('PIN incorrecto');
+  }
+  sesionId = u.id;
+  $('#bloqueo').hidden = true;
+  aplicarPermisos();
+  mostrarVista('vender');
+});
+$('#btn-bloquear').addEventListener('click', bloquear);
+
+// Si el dueño olvida su PIN, el proveedor le genera una llave de rescate para este equipo
+$('#btn-olvide').addEventListener('click', async () => {
+  $('#bloqueo').hidden = true;
+  const duenos = db.usuarios.filter((u) => u.rol === 'dueno');
+  const r = await formulario('Olvidé mi PIN', [
+    { tipo: 'texto', valor: `Pide una <b>llave de rescate</b> a quien te vendió el sistema y dale este código de equipo: <b>${codigoEquipo()}</b>` },
+    { nombre: 'clave', etiqueta: 'Llave de rescate', requerido: true },
+    { nombre: 'quien', etiqueta: 'Dueño', opciones: duenos.map((u) => [u.id, u.nombre]), valor: duenos[0]?.id, ancho: 'medio' },
+    { nombre: 'pin', etiqueta: 'PIN nuevo (4 a 6 números)', tipo: 'password', requerido: true, ancho: 'medio' },
+  ], 'Cambiar PIN');
+  $('#bloqueo').hidden = false;
+  if (!r) return;
+  if (!pinValido(r.pin)) return aviso('El PIN debe ser de 4 a 6 números');
+  try {
+    await leerClave(r.clave, 'rescate');
+    const u = db.usuarios.find((x) => x.id === r.quien);
+    await ponerPin(u, r.pin);
+    guardar();
+    elegido = u.id;
+    pintarBloqueo();
+    aviso(`Listo, ${u.nombre} ya puede entrar con su PIN nuevo`);
+  } catch (err) {
+    aviso(err.message);
+  }
+});
+
+function pintarUsuarios() {
+  const yo = usuarioActual();
+  $('#lista-usuarios').innerHTML = db.usuarios.length
+    ? db.usuarios.map((u) => `<li>
+        <span class="avatar">${esc(u.nombre.trim().charAt(0).toUpperCase())}</span>
+        <span class="crece"><b>${esc(u.nombre)}</b>${u.id === yo?.id ? ' <small class="muted">(tú)</small>' : ''}<br><small class="muted">${ROLES[u.rol]}</small></span>
+        <button class="btn-icono" data-editar-usuario="${u.id}" title="Editar">${ic('pencil')}</button>
+        <button class="btn-icono peligro" data-borrar-usuario="${u.id}" title="Borrar">${ic('trash-2')}</button>
+      </li>`).join('')
+    : '<li class="muted">Aún no hay usuarios: cualquiera puede usar todo sin PIN. Crea primero al dueño.</li>';
+  $('#btn-nuevo-usuario').innerHTML = `${ic('plus')}${db.usuarios.length ? 'Agregar cajero o dueño' : 'Crear dueño'}`;
+}
+
+async function editarUsuario(u) {
+  const primero = !db.usuarios.length;
+  const unicoDueno = u?.rol === 'dueno' && db.usuarios.filter((x) => x.rol === 'dueno').length === 1;
+  const r = await formulario(u ? `Editar a ${u.nombre}` : primero ? 'Crear al dueño' : 'Nuevo usuario', [
+    ...(primero ? [{ tipo: 'texto', valor: 'Desde ahora la app pedirá entrar con PIN al abrirse. El dueño puede todo; los cajeros solo venden, cobran y hacen corte.' }] : []),
+    { nombre: 'nombre', etiqueta: 'Nombre', valor: u?.nombre, requerido: true },
+    { nombre: 'rol', etiqueta: 'Puesto', opciones: primero || unicoDueno ? [['dueno', 'Dueño']] : [['cajero', 'Cajero'], ['dueno', 'Dueño']], valor: u?.rol || 'cajero', ancho: 'medio' },
+    { nombre: 'pin', etiqueta: u ? 'PIN nuevo (vacío = no cambiar)' : 'PIN (4 a 6 números)', tipo: 'password', requerido: !u, ancho: 'medio' },
+  ]);
+  if (!r) return;
+  if ((r.pin || !u) && !pinValido(r.pin)) return aviso('El PIN debe ser de 4 a 6 números');
+  if (db.usuarios.some((x) => x !== u && sinAcentos(x.nombre) === sinAcentos(r.nombre))) return aviso(`Ya hay un usuario llamado ${r.nombre}`);
+  const nuevo = !u;
+  if (nuevo) u = { id: id() };
+  u.nombre = r.nombre;
+  u.rol = r.rol;
+  if (r.pin) await ponerPin(u, r.pin);
+  if (nuevo) db.usuarios.push(u);
+  guardar();
+  if (primero) {
+    sesionId = u.id;
+    aviso('Listo. Desde ahora la app pide PIN al abrir.');
+  }
+  aplicarPermisos();
+  pintarUsuarios();
+}
+
+$('#btn-nuevo-usuario').addEventListener('click', () => editarUsuario(null));
+$('#lista-usuarios').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (d.editarUsuario) editarUsuario(db.usuarios.find((u) => u.id === d.editarUsuario));
+  if (d.borrarUsuario) {
+    const u = db.usuarios.find((x) => x.id === d.borrarUsuario);
+    const otros = db.usuarios.filter((x) => x !== u);
+    if (u.rol === 'dueno' && otros.length && !otros.some((x) => x.rol === 'dueno')) return aviso('Debe quedar al menos un dueño');
+    if (!confirm(otros.length ? `¿Borrar a ${u.nombre}?` : `¿Borrar a ${u.nombre}? Sin usuarios, la app ya no pedirá PIN.`)) return;
+    db.usuarios = otros;
+    guardar();
+    if (u.id === sesionId) {
+      if (otros.length) return bloquear();
+      sesionId = null;
+    }
+    aplicarPermisos();
+    pintarUsuarios();
+  }
+});
 
 // ---------- Instalar como app (Chrome/Edge) y uso sin internet ----------
 let instalacion = null;
@@ -1097,5 +1423,8 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 pintarMarca();
+aplicarPermisos();
+if (db.usuarios.length) bloquear();
 pintarVender();
+cargarLicencia();
 cargarFotos().then(() => { if (Object.keys(fotos).length) { pintarVender(); pintarProductos(); } });
