@@ -347,6 +347,7 @@ pago.addEventListener('change', () => {
   $('#campo-cliente').hidden = pago.value !== 'credito';
   $('#campo-recibido').hidden = pago.value !== 'efectivo';
   $('#campo-referencia').hidden = pago.value !== 'tarjeta';
+  pintarCobroTerminal();
   pintarCambio();
 });
 $('#recibido').addEventListener('input', pintarCambio);
@@ -389,7 +390,23 @@ function limpiarVenta() {
   buscar.focus();
 }
 
+// Con terminal conectada se cobra ahí, salvo que marquen que ya se cobró en otra
+function pintarCobroTerminal() {
+  const enTerminal = pago.value === 'tarjeta' && mpListo();
+  $('#campo-terminal').hidden = !enTerminal;
+  $('#referencia').closest('label').hidden = pago.value !== 'tarjeta' || (enTerminal && $('#usar-terminal').checked);
+  $('#btn-cobrar').querySelector('span').textContent = enTerminal && $('#usar-terminal').checked ? 'Cobrar en terminal' : 'Cobrar';
+}
+$('#usar-terminal').addEventListener('change', pintarCobroTerminal);
+
+let cobrando = false;
 async function cobrar() {
+  if (cobrando) return;
+  cobrando = true;
+  try { await cobrarVenta(); } finally { cobrando = false; }
+}
+
+async function cobrarVenta() {
   if (!carrito.length) return aviso('No hay productos en la venta');
   if (!estadoLicencia().ok) {
     aviso(esDueno() ? 'Activa tu licencia para seguir cobrando' : 'La licencia venció: avisa al dueño');
@@ -412,6 +429,11 @@ async function cobrar() {
     if (num(c.limite) > 0 && c.saldo + total > num(c.limite) &&
         !confirm(`${c.nombre} pasaría su límite de crédito (${dinero(c.limite)}). ¿Vender de todos modos?`)) return;
   }
+  let tarjeta = null;
+  if (forma === 'tarjeta' && mpListo() && $('#usar-terminal').checked) {
+    tarjeta = await cobrarEnTerminal(total, `pdv-${lic.equipo}-${db.folio + 1}-${Date.now().toString(36)}`);
+    if (!tarjeta) return;
+  }
 
   const venta = {
     id: id(),
@@ -426,7 +448,8 @@ async function cobrar() {
     recibido: redondear(recibido),
     cambio: redondear(recibido - total),
     clienteId,
-    referencia: forma === 'tarjeta' ? $('#referencia').value.trim() : '',
+    referencia: tarjeta ? `MP ${[tarjeta.marca, tarjeta.ultimos && '··' + tarjeta.ultimos].filter(Boolean).join(' ')}`.trim() : forma === 'tarjeta' ? $('#referencia').value.trim() : '',
+    ...(tarjeta ? { mercadoPago: tarjeta } : {}),
     cancelada: false,
     usuario: usuarioActual()?.nombre || '',
   };
@@ -1215,6 +1238,7 @@ function pintarAjustes() {
   Object.entries(db.ajustes).forEach(([k, v]) => { if (f.elements[k]) f.elements[k].value = v; });
   pintarLicencia();
   pintarUsuarios();
+  pintarMP();
 }
 $('#form-ajustes').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1570,6 +1594,194 @@ $('#lista-usuarios').addEventListener('click', (e) => {
   }
 });
 
+// ---------- Mercado Pago Point ----------
+// Con la app de escritorio, el cobro con tarjeta se manda a la terminal Point del negocio
+// y la venta se registra sola cuando el pago queda aprobado. El token es del negocio y se
+// guarda aparte de los datos para que no viaje en los respaldos.
+const CLAVE_MP = 'pdv-mercadopago-v1';
+const mp = (() => { try { return JSON.parse(localStorage.getItem(CLAVE_MP)) || {}; } catch (e) { return {}; } })(); // { token, terminal }
+const guardarMP = () => { try { localStorage.setItem(CLAVE_MP, JSON.stringify(mp)); } catch (e) { /* sin acceso */ } };
+const mpDisponible = () => !!window.escritorio?.mercadoPago;
+const mpListo = () => mpDisponible() && !!mp.token && !!mp.terminal;
+
+const ERRORES_MP = {
+  already_queued_order_for_terminal: 'La terminal ya tiene un cobro esperando. Termínalo o cancélalo en la terminal.',
+  forbidden_checking_terminal_owner: 'Esa terminal no es de la cuenta de Mercado Pago de este token.',
+  terminal_not_allowed_action: 'La terminal no permite cambiar de modo.',
+  store_pos_not_found: 'La terminal no tiene sucursal y caja en Mercado Pago. Vincúlala desde la app de Mercado Pago.',
+  unsupported_site: 'La cuenta de Mercado Pago no es de México.',
+};
+const RECHAZOS_MP = {
+  rejected_by_issuer: 'El banco rechazó la tarjeta.',
+  insufficient_amount: 'La tarjeta no tiene fondos suficientes.',
+  high_risk: 'Mercado Pago rechazó el pago por seguridad.',
+  card_disabled: 'La tarjeta está deshabilitada.',
+  bad_filled_card_data: 'Los datos de la tarjeta no son correctos.',
+  required_call_for_authorize: 'El cliente debe llamar a su banco para autorizar el pago.',
+  max_attempts_exceeded: 'Se pasaron los intentos permitidos con esa tarjeta.',
+  amount_limit_exceeded: 'El monto pasa el límite de la tarjeta.',
+  canceled_on_terminal: 'Se canceló en la terminal.',
+  canceled_by_api: 'Se canceló el cobro.',
+  expired: 'Se acabó el tiempo para pasar la tarjeta.',
+};
+
+async function llamarMP(metodo, ruta, cuerpo) {
+  const r = await window.escritorio.mercadoPago({ metodo, ruta, token: mp.token, cuerpo, idempotencia: metodo === 'POST' ? crypto.randomUUID() : '' });
+  if (r.ok) return r.datos;
+  const d = r.datos || {};
+  const codigo = d.errors?.[0]?.code || d.code || d.error || '';
+  const e = new Error(ERRORES_MP[codigo] || (r.estado === 401 ? 'El Access Token de Mercado Pago no es válido.' : d.errors?.[0]?.message || d.message || `Mercado Pago respondió con error ${r.estado}.`));
+  e.codigo = codigo;
+  throw e;
+}
+
+// Manda el cobro a la terminal y espera. Devuelve los datos del pago aprobado o null si no se cobró.
+let cobroEnCurso = null;
+async function cobrarEnTerminal(total, referencia) {
+  const modal = $('#modal-terminal');
+  const estado = $('#terminal-estado');
+  $('#terminal-total').textContent = dinero(total);
+  estado.textContent = 'Enviando el cobro a la terminal…';
+  estado.className = 'terminal-estado';
+  $('#btn-cancelar-terminal').hidden = false;
+  $('#btn-cerrar-terminal').hidden = true;
+  modal.showModal();
+
+  const cerrarCon = (texto, clase) => {
+    estado.textContent = texto;
+    estado.className = 'terminal-estado ' + clase;
+    $('#btn-cancelar-terminal').hidden = true;
+    $('#btn-cerrar-terminal').hidden = false;
+    return new Promise((ok) => modal.addEventListener('close', () => ok(null), { once: true }));
+  };
+
+  let orden;
+  try {
+    orden = await llamarMP('POST', '/v1/orders', {
+      type: 'point',
+      external_reference: referencia,
+      description: `${db.ajustes.negocio || 'Punto de Venta'} venta`,
+      transactions: { payments: [{ amount: total.toFixed(2) }] },
+      config: { point: { terminal_id: mp.terminal, print_on_terminal: 'no_ticket' } },
+    });
+  } catch (err) {
+    return cerrarCon(err.message, 'error');
+  }
+
+  cobroEnCurso = orden.id;
+  estado.textContent = 'Pide al cliente que pase, inserte o acerque su tarjeta en la terminal.';
+  const inicio = Date.now();
+  while (Date.now() - inicio < 16 * 60e3) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    try {
+      orden = await llamarMP('GET', `/v1/orders/${encodeURIComponent(orden.id)}`);
+    } catch (err) {
+      estado.textContent = 'Sin respuesta de Mercado Pago, sigo intentando…';
+      continue;
+    }
+    const pagoMP = orden.transactions?.payments?.[0] || {};
+    if (orden.status === 'at_terminal') estado.textContent = 'La terminal ya tiene el cobro. Esperando la tarjeta…';
+    if (orden.status === 'action_required') estado.textContent = 'Confirma el cobro en la terminal.';
+    if (orden.status === 'processed') {
+      cobroEnCurso = null;
+      modal.close();
+      return {
+        orden: orden.id,
+        pago: pagoMP.id || '',
+        ultimos: pagoMP.card?.last_digits || '',
+        marca: pagoMP.payment_method?.id || '',
+        tipo: pagoMP.payment_method?.type || '',
+      };
+    }
+    if (['failed', 'expired', 'canceled', 'refunded'].includes(orden.status)) {
+      cobroEnCurso = null;
+      const motivo = RECHAZOS_MP[pagoMP.status_detail] || RECHAZOS_MP[orden.status_detail] || 'No se completó el cobro.';
+      return cerrarCon(`${motivo} No se registró la venta.`, 'error');
+    }
+  }
+  cobroEnCurso = null;
+  return cerrarCon('La terminal no respondió a tiempo. Revisa en la terminal si el cobro pasó antes de volver a intentarlo.', 'error');
+}
+
+$('#btn-cancelar-terminal').addEventListener('click', async () => {
+  if (!cobroEnCurso) return;
+  try {
+    await llamarMP('POST', `/v1/orders/${encodeURIComponent(cobroEnCurso)}/cancel`);
+    $('#terminal-estado').textContent = 'Cancelando…';
+  } catch (err) {
+    $('#terminal-estado').textContent = err.codigo === 'cannot_cancel_order'
+      ? 'La terminal ya tiene el cobro en pantalla: cancélalo ahí.'
+      : err.message;
+  }
+});
+$('#btn-cerrar-terminal').addEventListener('click', () => $('#modal-terminal').close());
+// Mientras se espera la tarjeta, Esc no cierra la ventana: hay que cancelar o esperar la respuesta
+$('#modal-terminal').addEventListener('cancel', (e) => { if (cobroEnCurso) e.preventDefault(); });
+
+// Ajustes
+function pintarMP() {
+  $('#mp-no-disponible').hidden = mpDisponible();
+  $('#form-mp').hidden = !mpDisponible();
+  if (!mpDisponible()) return;
+  $('#mp-token').value = mp.token || '';
+  $('#mp-estado').innerHTML = mpListo()
+    ? `<span class="badge ok">Conectada</span> Terminal <code>${esc(mp.terminal)}</code>`
+    : '<span class="badge neutro">Sin conectar</span>';
+  $('#btn-mp-quitar').hidden = !mp.token;
+}
+
+$('#form-mp').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  mp.token = $('#mp-token').value.trim();
+  if (!mp.token) return aviso('Pega el Access Token de Mercado Pago');
+  const lista = $('#mp-terminales');
+  lista.innerHTML = '<p class="muted">Buscando terminales…</p>';
+  try {
+    const d = await llamarMP('GET', '/terminals/v1/list?limit=50');
+    const terminales = d.data?.terminals || [];
+    guardarMP();
+    lista.innerHTML = terminales.length
+      ? terminales.map((t) => `<div class="mp-terminal ${t.id === mp.terminal ? 'activa' : ''}">
+          <div><code>${esc(t.id)}</code><br><small class="muted">Modo ${esc(t.operating_mode || '?')}</small></div>
+          ${t.operating_mode === 'PDV'
+            ? `<button type="button" class="sec" data-usar="${esc(t.id)}">${t.id === mp.terminal ? 'En uso' : 'Usar esta'}</button>`
+            : `<button type="button" class="sec" data-pdv="${esc(t.id)}">Poner en modo punto de venta</button>`}
+        </div>`).join('')
+      : '<p class="muted">Esta cuenta no tiene terminales Point. Vincula tu terminal desde la app de Mercado Pago.</p>';
+  } catch (err) {
+    lista.innerHTML = '';
+    aviso(err.message);
+  }
+  pintarMP();
+});
+$('#mp-terminales').addEventListener('click', async (e) => {
+  const d = boton(e);
+  if (d.usar) {
+    mp.terminal = d.usar;
+    guardarMP();
+    pintarMP();
+    $('#form-mp').requestSubmit();
+    aviso('Listo. Los cobros con tarjeta se mandan a esa terminal.');
+  }
+  if (d.pdv) {
+    try {
+      await llamarMP('PATCH', '/terminals/v1/setup', { terminals: [{ id: d.pdv, operating_mode: 'PDV' }] });
+      aviso('Listo. Reinicia la terminal para que tome el modo punto de venta.');
+      $('#form-mp').requestSubmit();
+    } catch (err) {
+      aviso(err.message);
+    }
+  }
+});
+$('#btn-mp-quitar').addEventListener('click', () => {
+  if (!confirm('¿Desconectar Mercado Pago? Los cobros con tarjeta se registrarán a mano otra vez.')) return;
+  delete mp.token;
+  delete mp.terminal;
+  guardarMP();
+  $('#mp-terminales').innerHTML = '';
+  pintarMP();
+});
+
 // ---------- Instalar como app (Chrome/Edge) y uso sin internet ----------
 let instalacion = null;
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -1594,4 +1806,5 @@ aplicarPermisos();
 if (db.usuarios.length) bloquear();
 pintarVender();
 cargarLicencia();
+pintarCobroTerminal();
 cargarFotos().then(() => { if (Object.keys(fotos).length) { pintarVender(); pintarProductos(); } });

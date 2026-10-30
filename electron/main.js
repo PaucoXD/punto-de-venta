@@ -1,5 +1,5 @@
 // Versión de escritorio: abre la misma app web en una ventana propia.
-const { app, BrowserWindow, Menu, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain, net } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
@@ -17,7 +17,7 @@ function crearVentana() {
     icon: path.join(__dirname, '..', 'iconos', 'icono-512.png'),
     backgroundColor: '#f3f5fa',
     show: false,
-    webPreferences: { contextIsolation: true, sandbox: true },
+    webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') },
   });
   ventana.maximize();
   ventana.once('ready-to-show', () => ventana.show());
@@ -29,6 +29,25 @@ function crearVentana() {
     return { action: 'deny' };
   });
 }
+
+// ---------- Mercado Pago Point ----------
+// La API de Mercado Pago no acepta llamadas desde una página, así que pasan por aquí.
+// Solo se permiten las rutas de órdenes y terminales.
+const API_MP = process.env.PDV_API_MP || 'https://api.mercadopago.com';
+ipcMain.handle('mercado-pago', async (_e, { metodo = 'GET', ruta, token, cuerpo, idempotencia }) => {
+  if (!/^\/(v1\/orders|terminals\/v1)(\/|\?|$)/.test(String(ruta))) throw new Error('Ruta no permitida');
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  if (idempotencia) headers['X-Idempotency-Key'] = idempotencia;
+  try {
+    const r = await net.fetch(API_MP + ruta, { method: metodo, headers, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+    const texto = await r.text();
+    let datos = null;
+    try { datos = JSON.parse(texto); } catch (e) { datos = { message: texto }; }
+    return { ok: r.ok, estado: r.status, datos };
+  } catch (err) {
+    return { ok: false, estado: 0, datos: { message: 'Sin conexión con Mercado Pago' } };
+  }
+});
 
 // ---------- Actualizaciones ----------
 // Revisa las Releases del repo en GitHub. Si hay versión nueva la baja en segundo plano
