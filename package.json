@@ -9,7 +9,8 @@
   "main": "electron/main.js",
   "scripts": {
     "escritorio": "electron .",
-    "instalador": "electron-builder --win --publish never"
+    "instalador": "electron-builder --win --publish never",
+    "publicar": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "33.2.1",
@@ -19,15 +20,39 @@
     "appId": "mx.paucoxd.puntodeventa",
     "productName": "Punto de Venta",
     "artifactName": "Punto-de-Venta-${version}-instalador.${ext}",
-    "directories": { "output": "dist" },
-    "files": ["index.html", "app.js", "styles.css", "iconos/**", "fuentes/**", "electron/**", "package.json"],
-    "win": { "target": "nsis", "icon": "iconos/icono.ico" },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "styles.css",
+      "iconos/**",
+      "fuentes/**",
+      "electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "iconos/icono.ico"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "Punto de Venta",
       "language": "3082"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "PaucoXD",
+        "repo": "punto-de-venta",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
   }
 }

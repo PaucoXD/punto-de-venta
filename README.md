@@ -23,6 +23,17 @@ Guarda la hoja como CSV con una fila de encabezados. Se reconocen estas columnas
 - **Instalada desde el navegador**: en Chrome o Edge aparece el botón verde **⬇ Instalar en este equipo**. Queda como app con su ícono en el escritorio y el menú Inicio.
 - **App de escritorio para Windows (.exe)**: en la pestaña **Actions → Instalador de escritorio → Run workflow** se construye el instalador; se descarga desde *Artifacts* al terminar. Si creas una etiqueta `v1.0.1` (o la que sigue), el instalador también se publica en **Releases**.
 
+### Actualizaciones
+
+- **Navegador / app instalada desde Chrome o Edge**: se actualiza sola. Cada vez que abre con internet baja lo último de GitHub Pages.
+- **App de Windows (.exe)**: igual que Expedito, revisa sola si hay versión nueva (al abrir y cada 4 horas), la descarga en segundo plano y pregunta si reiniciar para instalarla. También está en el menú *Ayuda → Buscar actualizaciones*.
+
+Para sacar una versión nueva:
+
+1. Haz merge de los cambios a `main`.
+2. En GitHub ve a **Releases → Draft a new release**, escribe una etiqueta nueva mayor que la anterior (por ejemplo `v1.0.1`) en "Choose a tag → Create new tag", y dale **Publish release**. (O desde la terminal: `git tag v1.0.1 && git push origin v1.0.1`.)
+3. GitHub Actions construye el instalador y sube a esa Release el `.exe` y el `latest.yml`. En unos minutos las apps instaladas la encuentran.
+
 Cada forma de abrirla guarda sus propios datos. Para pasar los datos de una a otra usa *Ajustes → Descargar respaldo* y *Restaurar respaldo*.
 
 ### Para desarrollar la versión de escritorio
