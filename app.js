@@ -459,10 +459,13 @@ async function cobrarVenta() {
   guardar();
   limpiarVenta();
 
+  if (imp.cajon === 'siempre' || (imp.cajon === 'efectivo' && forma === 'efectivo')) abrirCajon();
+  const auto = impDirecta() && imp.auto;
+  if (auto) await imprimirTicket(venta);
   const r = await formulario(`Venta #${venta.folio} registrada`, [
     { tipo: 'texto', valor: `Total <b>${dinero(total)}</b>` + (forma === 'efectivo' ? ` · Cambio <b>${dinero(venta.cambio)}</b>` : '') },
-  ], 'Imprimir ticket', 'Listo');
-  if (r) imprimirTicket(venta);
+  ], auto ? 'Imprimir otra vez' : 'Imprimir ticket', 'Listo');
+  if (r) await imprimirTicket(venta);
   buscar.focus();
 }
 $('#btn-cobrar').addEventListener('click', cobrar);
@@ -501,11 +504,12 @@ function imprimirTicket(v) {
     </table>
     <hr>
     <div class="c">${esc(a.pie)}</div>`;
-  imprimir('ticket');
+  return imprimir('ticket');
 }
 
-// Imprime el ticket o las etiquetas (solo se muestra uno de los dos al imprimir)
-function imprimir(que, tamanoPagina = '') {
+// Imprime el ticket o las etiquetas (solo se muestra uno de los dos al imprimir).
+// En la app de escritorio el ticket va directo a la impresora elegida, sin ventana.
+async function imprimir(que, tamanoPagina = '') {
   document.body.dataset.imprimir = que;
   let estilo = null;
   if (tamanoPagina) {
@@ -513,7 +517,12 @@ function imprimir(que, tamanoPagina = '') {
     estilo.textContent = `@page { size: ${tamanoPagina}; margin: 0; }`;
     document.head.appendChild(estilo);
   }
-  window.print();
+  if (que === 'ticket' && impDirecta()) {
+    const r = await window.escritorio.imprimir({ impresora: imp.impresora });
+    if (!r.ok && !/cancel/i.test(r.motivo)) aviso(`No se pudo imprimir en ${imp.impresora}. Revisa que esté prendida y conectada.`);
+  } else {
+    window.print();
+  }
   delete document.body.dataset.imprimir;
   if (estilo) estilo.remove();
 }
@@ -1256,6 +1265,7 @@ function pintarAjustes() {
   pintarLicencia();
   pintarUsuarios();
   pintarMP();
+  pintarImpresion();
 }
 $('#form-ajustes').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1610,6 +1620,50 @@ $('#lista-usuarios').addEventListener('click', (e) => {
     pintarUsuarios();
   }
 });
+
+// ---------- Impresora de tickets y cajón ----------
+// Se guarda aparte de los datos: cada computadora tiene sus propias impresoras.
+const CLAVE_IMP = 'pdv-impresion-v1';
+const imp = (() => { try { return { auto: false, cajon: 'nunca', ...JSON.parse(localStorage.getItem(CLAVE_IMP)) }; } catch (e) { return { auto: false, cajon: 'nunca' }; } })();
+const guardarImp = () => localStorage.setItem(CLAVE_IMP, JSON.stringify(imp));
+const impDisponible = () => !!window.escritorio?.imprimir;
+const impDirecta = () => impDisponible() && !!imp.impresora;
+
+async function abrirCajon(avisar = false) {
+  if (!impDirecta()) return avisar && aviso('Primero elige la impresora de tickets');
+  const r = await window.escritorio.abrirCajon({ impresora: imp.impresora });
+  if (!r.ok) aviso(`No se pudo abrir el cajón: ${r.motivo}`);
+  else if (avisar) aviso('Listo, se mandó abrir el cajón');
+}
+
+async function pintarImpresion() {
+  $('#imp-no-disponible').hidden = impDisponible();
+  $('#form-imp').hidden = !impDisponible();
+  if (!impDisponible()) return;
+  const lista = await window.escritorio.impresoras();
+  $('#imp-impresora').innerHTML = '<option value="">Preguntar cada vez (ventana de impresión)</option>' +
+    lista.map((i) => `<option value="${esc(i.nombre)}">${esc(i.nombre)}${i.predeterminada ? ' (predeterminada)' : ''}</option>`).join('') +
+    (imp.impresora && !lista.some((i) => i.nombre === imp.impresora) ? `<option value="${esc(imp.impresora)}">${esc(imp.impresora)} (no conectada)</option>` : '');
+  $('#imp-impresora').value = imp.impresora || '';
+  $('#imp-auto').checked = !!imp.auto;
+  $('#imp-cajon').value = imp.cajon;
+  $('#imp-auto').disabled = $('#imp-cajon').disabled = $('#btn-imp-prueba').disabled = $('#btn-imp-cajon').disabled = !imp.impresora;
+}
+
+$('#form-imp').addEventListener('change', () => {
+  imp.impresora = $('#imp-impresora').value;
+  imp.auto = !!imp.impresora && $('#imp-auto').checked;
+  imp.cajon = imp.impresora ? $('#imp-cajon').value : 'nunca';
+  guardarImp();
+  pintarImpresion();
+  aviso('Guardado');
+});
+
+$('#btn-imp-prueba').addEventListener('click', () => imprimirTicket({
+  folio: 0, fecha: Date.now(), items: [{ nombre: 'Ticket de prueba', cant: 1, precio: 0 }],
+  total: 0, pago: 'efectivo', recibido: 0, cambio: 0, referencia: '', usuario: usuarioActual()?.nombre || '',
+}));
+$('#btn-imp-cajon').addEventListener('click', () => abrirCajon(true));
 
 // ---------- Mercado Pago Point ----------
 // Con la app de escritorio, el cobro con tarjeta se manda a la terminal Point del negocio
