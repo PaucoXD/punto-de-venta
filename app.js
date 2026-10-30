@@ -67,7 +67,7 @@ function mostrarVista(nombre) {
   if (!esDueno() && SOLO_DUENO.includes(nombre)) nombre = 'vender';
   $$('#tabs button').forEach((b) => b.classList.toggle('activa', b.dataset.vista === nombre));
   $$('.vista').forEach((v) => v.classList.toggle('activa', v.id === 'vista-' + nombre));
-  ({ vender: pintarVender, productos: pintarProductos, clientes: pintarClientes, caja: pintarCaja, ajustes: pintarAjustes })[nombre]();
+  ({ vender: pintarVender, productos: pintarProductos, clientes: pintarClientes, caja: pintarCaja, reportes: pintarReportes, ajustes: pintarAjustes })[nombre]();
   if (nombre === 'vender') $('#buscar').focus();
 }
 $('#tabs').addEventListener('click', (e) => { const v = boton(e).vista; if (v) mostrarVista(v); });
@@ -897,6 +897,173 @@ $('#btn-corte').addEventListener('click', async () => {
   aviso(dif === 0 ? 'Corte cerrado. La caja cuadra.' : `Corte cerrado. ${dif > 0 ? 'Sobran' : 'Faltan'} ${dinero(Math.abs(dif))}`);
 });
 
+// ---------- Reportes (solo dueño) ----------
+let periodo = 'mes';
+let ordenTop = 'cant';
+const inicioDia = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const isoDia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fechaCorta = (d) => d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+
+// [desde, hasta) en milisegundos
+function rangoPeriodo() {
+  const hoy = inicioDia(new Date());
+  const dias = (n) => new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n);
+  switch (periodo) {
+    case 'hoy': return [hoy, dias(1)];
+    case 'ayer': return [dias(-1), hoy];
+    case '7': return [dias(-6), dias(1)];
+    case '30': return [dias(-29), dias(1)];
+    case 'mes-pasado': return [new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1), new Date(hoy.getFullYear(), hoy.getMonth(), 1)];
+    case 'rango': {
+      const d = $('#desde').value ? new Date($('#desde').value + 'T00:00') : dias(-29);
+      const h = $('#hasta').value ? new Date($('#hasta').value + 'T00:00') : hoy;
+      return d <= h ? [d, new Date(h.getFullYear(), h.getMonth(), h.getDate() + 1)] : [h, new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)];
+    }
+    default: return [new Date(hoy.getFullYear(), hoy.getMonth(), 1), dias(1)];
+  }
+}
+
+const gananciaVenta = (v) => v.items.reduce((s, it) => s + (it.precio - it.costo) * it.cant, 0) -
+  (v.pago === 'tarjeta' ? v.total * num(db.ajustes.comisionTarjeta) / 100 : 0);
+
+function datosReporte() {
+  const [desde, hasta] = rangoPeriodo();
+  const enRango = db.ventas.filter((v) => v.fecha >= desde.getTime() && v.fecha < hasta.getTime());
+  const ventas = enRango.filter((v) => !v.cancelada);
+  const total = redondear(ventas.reduce((s, v) => s + v.total, 0));
+  const ganancia = redondear(ventas.reduce((s, v) => s + gananciaVenta(v), 0));
+  const piezas = ventas.reduce((s, v) => s + v.items.reduce((t, it) => t + it.cant, 0), 0);
+
+  // Por día, o por mes si el periodo pasa de 2 meses
+  const porMes = (hasta - desde) / DIA > 62;
+  const llave = (t) => { const d = new Date(t); return porMes ? `${d.getFullYear()}-${d.getMonth()}` : isoDia(d); };
+  const cubetas = [];
+  for (let d = new Date(desde); d < hasta; d = porMes ? new Date(d.getFullYear(), d.getMonth() + 1, 1) : new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    cubetas.push({ llave: llave(d), fecha: new Date(d), total: 0, ventas: 0 });
+  }
+  const indice = Object.fromEntries(cubetas.map((c) => [c.llave, c]));
+  ventas.forEach((v) => { const c = indice[llave(v.fecha)]; if (c) { c.total += v.total; c.ventas++; } });
+
+  const pagos = ['efectivo', 'tarjeta', 'credito'].map((f) => {
+    const vs = ventas.filter((v) => v.pago === f);
+    return { forma: f, ventas: vs.length, total: redondear(vs.reduce((s, v) => s + v.total, 0)) };
+  });
+
+  const cajeros = {};
+  enRango.forEach((v) => {
+    const c = (cajeros[v.usuario || ''] ??= { nombre: v.usuario || 'Sin usuario', ventas: 0, total: 0, canceladas: 0 });
+    if (v.cancelada) c.canceladas++;
+    else { c.ventas++; c.total += v.total; }
+  });
+
+  const prods = {};
+  ventas.forEach((v) => v.items.forEach((it) => {
+    const p = (prods[it.productoId] ??= { id: it.productoId, nombre: it.nombre, cant: 0, vendido: 0, ganancia: 0 });
+    p.cant += it.cant;
+    p.vendido += it.precio * it.cant;
+    p.ganancia += (it.precio - it.costo) * it.cant;
+  }));
+  const quietos = db.productos
+    .filter((p) => num(p.stock) > 0 && !prods[p.id])
+    .map((p) => ({ nombre: p.nombre, stock: num(p.stock), valor: num(p.stock) * num(p.costo) }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return { desde, hasta, ventas, enRango, total, ganancia, piezas, porMes, cubetas, pagos, cajeros: Object.values(cajeros), prods: Object.values(prods), quietos };
+}
+
+function pintarReportes() {
+  const r = datosReporte();
+  const ultimo = new Date(r.hasta.getTime() - 1);
+  $('#resumen-reportes').textContent = isoDia(r.desde) === isoDia(ultimo)
+    ? r.desde.toLocaleDateString('es-MX', { dateStyle: 'full' })
+    : `Del ${r.desde.toLocaleDateString('es-MX', { dateStyle: 'medium' })} al ${ultimo.toLocaleDateString('es-MX', { dateStyle: 'medium' })}`;
+  $$('#periodos button').forEach((b) => b.classList.toggle('activa', b.dataset.periodo === periodo));
+  $('#rango').hidden = periodo !== 'rango';
+
+  const margen = r.total ? Math.round(r.ganancia / r.total * 100) : 0;
+  const tarjetas = [
+    ['Vendido', dinero(r.total), 'shopping-cart', 'destacada'],
+    [`Ganancia · ${margen}% de lo vendido`, dinero(r.ganancia), 'trending-up', 'verde'],
+    ['Ventas', r.ventas.length, 'receipt', ''],
+    ['Ticket promedio', dinero(r.ventas.length ? r.total / r.ventas.length : 0), 'wallet', ''],
+    ['Piezas vendidas', redondear(r.piezas), 'package', ''],
+  ];
+  $('#tarjetas-reportes').innerHTML = tarjetas.map(([t, v, icono, clase]) =>
+    `<div class="tarjeta ${clase}"><div class="ico">${ic(icono)}</div><div><span>${t}</span><strong>${v}</strong></div></div>`).join('');
+
+  // Gráfica de barras: una sola serie, sin leyenda; el valor sale al pasar el mouse
+  $('#titulo-grafica').textContent = r.porMes ? 'Vendido por mes' : 'Vendido por día';
+  const max = Math.max(...r.cubetas.map((c) => c.total), 0);
+  const pocas = r.cubetas.length <= 14;
+  const cada = Math.ceil(r.cubetas.length / 10);
+  const etiqueta = (c) => r.porMes ? c.fecha.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }) : pocas ? fechaCorta(c.fecha) : String(c.fecha.getDate());
+  $('#grafica').setAttribute('aria-label', `Vendido por ${r.porMes ? 'mes' : 'día'}, máximo ${dinero(max)}`);
+  $('#grafica').innerHTML = max
+    ? `<div class="eje-max">${dinero(max)}</div><div class="barras">` + r.cubetas.map((c, i) => `
+        <div class="col" tabindex="0">
+          <div class="barra" style="height:${c.total ? Math.max(2, c.total / max * 100) : 0}%"></div>
+          <div class="punta"><b>${dinero(c.total)}</b>${c.ventas} venta${c.ventas === 1 ? '' : 's'} · ${r.porMes ? etiqueta(c) : fechaCorta(c.fecha)}</div>
+          <span class="dia">${i % cada === 0 ? etiqueta(c) : ''}</span>
+        </div>`).join('') + '</div>'
+    : '<p class="vacio">Sin ventas en este periodo</p>';
+
+  const maxPago = Math.max(...r.pagos.map((p) => p.total), 1);
+  $('#por-pago').innerHTML = r.pagos.map((p) => `
+    <div class="fila-barra">
+      <span>${NOMBRE_PAGO[p.forma]}</span>
+      <div class="pista"><div style="width:${p.total / maxPago * 100}%"></div></div>
+      <b>${dinero(p.total)}</b>
+      <small class="muted">${r.total ? Math.round(p.total / r.total * 100) : 0}%</small>
+    </div>`).join('');
+
+  $('#tabla-cajeros tbody').innerHTML = r.cajeros.sort((a, b) => b.total - a.total).map((c) => `<tr>
+      <td>${esc(c.nombre)}</td><td class="num">${c.ventas}</td><td class="num">${dinero(c.total)}</td>
+      <td class="num">${c.canceladas ? `<span class="badge agotado">${c.canceladas}</span>` : '0'}</td></tr>`).join('') ||
+    '<tr><td colspan="4" class="vacio">Sin ventas</td></tr>';
+
+  const top = [...r.prods].sort((a, b) => b[ordenTop] - a[ordenTop]).slice(0, 20);
+  $$('#orden-productos button').forEach((b) => b.classList.toggle('activa', b.dataset.orden === ordenTop));
+  $('#tabla-top tbody').innerHTML = top.map((p, i) => `<tr>
+      <td class="muted">${i + 1}</td><td>${esc(p.nombre)}</td><td class="num">${redondear(p.cant)}</td>
+      <td class="num">${dinero(p.vendido)}</td><td class="num">${dinero(p.ganancia)}</td>
+      <td class="num">${p.vendido ? Math.round(p.ganancia / p.vendido * 100) : 0}%</td></tr>`).join('') ||
+    '<tr><td colspan="6" class="vacio">Sin ventas en este periodo</td></tr>';
+
+  $('#tabla-quietos tbody').innerHTML = r.quietos.slice(0, 20).map((p) => `<tr>
+      <td>${esc(p.nombre)}</td><td class="num">${p.stock}</td><td class="num">${dinero(p.valor)}</td></tr>`).join('') +
+    (r.quietos.length > 20 ? `<tr><td colspan="3" class="muted">y ${r.quietos.length - 20} más</td></tr>` : '') ||
+    '<tr><td colspan="3" class="vacio">Todo lo que tiene existencia se vendió</td></tr>';
+}
+
+$('#periodos').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (!d.periodo) return;
+  periodo = d.periodo;
+  if (periodo === 'rango' && !$('#desde').value) {
+    const [desde, hasta] = rangoPeriodo();
+    $('#desde').value = isoDia(desde);
+    $('#hasta').value = isoDia(new Date(hasta - 1));
+  }
+  pintarReportes();
+});
+$('#desde').addEventListener('change', pintarReportes);
+$('#hasta').addEventListener('change', pintarReportes);
+$('#orden-productos').addEventListener('click', (e) => {
+  const d = boton(e);
+  if (!d.orden) return;
+  ordenTop = d.orden;
+  pintarReportes();
+});
+$('#btn-exportar-reporte').addEventListener('click', () => {
+  const r = datosReporte();
+  const filas = [['Folio', 'Fecha', 'Forma de pago', 'Cliente', 'Atendió', 'Producto', 'Código', 'Piezas', 'Precio', 'Costo', 'Importe', 'Cancelada']];
+  r.enRango.forEach((v) => v.items.forEach((it) => filas.push([
+    v.folio, fecha(v.fecha), NOMBRE_PAGO[v.pago], v.clienteId ? cliente(v.clienteId)?.nombre : '', v.usuario || '',
+    it.nombre, it.codigo, it.cant, it.precio, it.costo, redondear(it.precio * it.cant), v.cancelada ? 'Sí' : '',
+  ])));
+  descargar(`ventas-${isoDia(r.desde)}-a-${isoDia(new Date(r.hasta - 1))}.csv`, '﻿' + filas.map((f) => f.map(csvCelda).join(',')).join('\n'), 'text/csv');
+});
+
 // ---------- Fotos de productos ----------
 // Se guardan en IndexedDB porque en localStorage no caben. Se achican a 320 px.
 const fotos = {}; // id del producto → URL para <img>
@@ -1215,7 +1382,7 @@ $('#form-licencia').addEventListener('submit', async (e) => {
 // Sin usuarios la app no pide PIN (como siempre). Al crear el primero, que es el dueño,
 // la app pide entrar con PIN al abrirse. Los cajeros no ven Productos ni Ajustes ni la ganancia,
 // y para cambiar un precio o cancelar una venta piden el PIN de un dueño.
-const SOLO_DUENO = ['productos', 'ajustes'];
+const SOLO_DUENO = ['productos', 'reportes', 'ajustes'];
 const ROLES = { dueno: 'Dueño', cajero: 'Cajero' };
 let sesionId = null;
 const usuarioActual = () => db.usuarios.find((u) => u.id === sesionId) || null;

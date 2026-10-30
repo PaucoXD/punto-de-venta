@@ -488,6 +488,42 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
 
 .ticket, .etiquetas { display: none; }
 
+/* ---------- Reportes ---------- */
+.filtros-reporte { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.filtros-reporte .chips { margin: 0; }
+.rango { display: flex; gap: 8px; }
+.rango label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.rango input { width: auto; padding: 6px 8px; }
+.bloque { padding: 18px 20px; margin-top: 18px; }
+.bloque h3 { margin: 0 0 14px; }
+.chico { font-size: 13px; margin: -8px 0 10px; }
+.titulo-con-chips { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.titulo-con-chips h3 { margin: 0; }
+.titulo-con-chips .chips { margin: 0; }
+.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+.dos-columnas .bloque { margin-top: 18px; }
+
+/* Barras: una serie, línea base abajo, puntas redondeadas, 2px entre barras */
+.grafica { position: relative; padding-top: 22px; }
+.eje-max { position: absolute; top: 0; left: 0; font-size: 12px; color: var(--muted); }
+.barras { display: flex; align-items: stretch; gap: 2px; height: 200px; border-bottom: 1px solid var(--border); background: linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 50%; }
+.col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; position: relative; outline: none; }
+.barra { background: var(--primary); border-radius: 4px 4px 0 0; max-width: 48px; width: 100%; margin: 0 auto; transition: opacity 0.12s; }
+.barras:hover .barra { opacity: 0.45; }
+.barras .col:hover .barra, .barras .col:focus .barra { opacity: 1; }
+.dia { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.grafica { padding-bottom: 26px; }
+.punta { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 5; background: var(--surface); color: var(--muted); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: 8px; padding: 6px 10px; font-size: 12px; white-space: nowrap; pointer-events: none; }
+.punta b { display: block; color: var(--text); font-size: 14px; }
+.col:hover .punta, .col:focus .punta { display: block; bottom: auto; top: -46px; }
+.col:first-child .punta { left: 0; transform: none; }
+.col:last-child .punta { left: auto; right: 0; transform: none; }
+
+.fila-barra { display: grid; grid-template-columns: 150px 1fr auto 40px; align-items: center; gap: 10px; padding: 8px 0; }
+.fila-barra small { text-align: right; }
+.pista { height: 10px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.pista div { height: 100%; background: var(--primary); border-radius: 99px; }
+
 /* ---------- Pantallas chicas ---------- */
 @media (max-width: 1100px) {
   .venta { grid-template-columns: 1fr 360px; }
@@ -505,6 +541,9 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
   .venta { grid-template-columns: 1fr; }
   .ticket-panel { position: static; max-height: none; }
   .form .dos { grid-template-columns: 1fr; }
+  .fila-barra { grid-template-columns: 90px 1fr auto; }
+  .fila-barra small { display: none; }
+  .barras { height: 160px; }
   h1 { font-size: 22px; }
 }
 

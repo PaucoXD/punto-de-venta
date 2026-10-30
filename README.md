@@ -14,6 +14,7 @@ Punto de venta web para tienditas, distribuidoras y refaccionarias. Funciona sin
 - **Productos e inventario**: existencias, stock mínimo con aviso, "Surtir" para registrar mercancía que llega, importar y exportar CSV.
 - **Clientes**: saldo, abonos y estado de cuenta.
 - **Caja**: entradas y salidas de efectivo, ventas del turno, cancelación de ventas (regresa el inventario), ganancia estimada y corte de caja con diferencia.
+- **Reportes** (solo el dueño): por día, semana, mes o fechas elegidas. Muestra lo vendido, la ganancia y el margen, el ticket promedio, una gráfica de ventas por día, las formas de pago, las ventas por cajero, los productos más vendidos o que más ganancia dejan y los que no se vendieron. Las ventas del periodo se pueden exportar a CSV para Excel.
 - **Respaldo**: descarga y restaura todos los datos en un archivo.
 - **Usuarios con PIN**: el dueño puede todo; los cajeros solo venden, cobran, dan abonos y hacen corte. No ven Productos, Ajustes ni la ganancia, y para cambiar un precio o cancelar una venta piden el PIN del dueño. Cada venta y corte guarda quién lo hizo. Sin usuarios, la app no pide PIN.
 - **Licencia**: 15 días de prueba gratis. Después hay que activar una licencia para seguir cobrando (los datos se pueden seguir viendo).
