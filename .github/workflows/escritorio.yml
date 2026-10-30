@@ -1,37 +1,72 @@
 # Construye el instalador de Windows.
-# - En los PR y al correrlo a mano (Actions → Instalador de escritorio → Run workflow) deja el .exe en "Artifacts".
-# - Al crear una etiqueta v1.0.1, v1.0.2… lo publica en Releases junto con latest.yml,
-#   y las apps instaladas se actualizan solas desde ahí.
+# - Cada merge a main publica solo la versión siguiente (v1.0.1 → v1.0.2…) en Releases
+#   con el .exe y latest.yml, y las apps instaladas se actualizan solas desde ahí.
+#   Los cambios que solo tocan archivos .md no sacan versión.
+# - También se puede publicar una versión a mano creando una Release con etiqueta v*.
+# - En los PR y al correrlo a mano (Actions → Instalador de escritorio → Run workflow)
+#   solo construye y deja el .exe en "Artifacts".
 name: Instalador de escritorio
 
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
+    paths-ignore: ['**.md']
   pull_request:
     paths: ['electron/**', 'package.json', 'package-lock.json', '.github/workflows/escritorio.yml']
 
 permissions:
   contents: write
 
+concurrency:
+  group: instalador-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm ci
-      - name: Poner la versión de la etiqueta
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Calcular versión
+        id: version
         shell: bash
-        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+        run: |
+          publicar=false
+          version=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            publicar=true
+            version="${GITHUB_REF_NAME#v}"
+          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            if git tag --points-at HEAD | grep -q '^v'; then
+              echo "Este commit ya tiene versión publicada; no se saca otra."
+            else
+              ultima=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+              ultima="${ultima#v}"
+              [ -z "$ultima" ] && ultima="1.0.0"
+              IFS=. read -r mayor menor parche <<< "$ultima"
+              version="$mayor.$menor.$((parche + 1))"
+              publicar=true
+            fi
+          fi
+          echo "publicar=$publicar" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publicar: $publicar ${version:+(v$version)}"
+      - name: Poner la versión
+        if: steps.version.outputs.publicar == 'true'
+        shell: bash
+        run: npm version --no-git-tag-version --allow-same-version "${{ steps.version.outputs.version }}"
       - name: Construir
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: steps.version.outputs.publicar != 'true'
         run: npm run instalador
       - name: Construir y publicar en Releases
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.version.outputs.publicar == 'true'
         run: npm run publicar
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
