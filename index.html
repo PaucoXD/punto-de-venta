@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Punto de Venta</title>
+  <meta name="description" content="Punto de venta para tienditas, distribuidoras y refaccionarias: cobra con lector de código de barras, controla inventario, fiado y corte de caja. Funciona sin internet.">
+  <meta name="theme-color" content="#0b2a9a">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="marca" id="marca">Punto de Venta</div>
+    <nav class="tabs" id="tabs">
+      <button data-vista="vender" class="activa">Vender</button>
+      <button data-vista="productos">Productos</button>
+      <button data-vista="clientes">Clientes</button>
+      <button data-vista="caja">Caja</button>
+      <button data-vista="ajustes">Ajustes</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- VENDER -->
+    <section class="vista activa" id="vista-vender">
+      <div class="venta">
+        <div class="panel carrito-panel">
+          <form id="form-buscar" class="buscar" autocomplete="off">
+            <input id="buscar" type="search" placeholder="Escanea o escribe código, nombre o marca" autofocus>
+            <button type="button" id="btn-camara" class="sec" title="Escanear con la cámara">📷</button>
+          </form>
+          <ul id="sugerencias" class="sugerencias"></ul>
+          <div class="tabla-wrap">
+            <table class="tabla" id="carrito">
+              <thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Importe</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="vacio" id="carrito-vacio">Escanea un producto o búscalo por nombre para empezar.</p>
+          </div>
+        </div>
+
+        <aside class="panel cobro">
+          <div class="total-grande"><span>Total</span><strong id="total">$0.00</strong></div>
+          <div class="piezas" id="piezas">0 piezas</div>
+          <label>Forma de pago
+            <select id="pago">
+              <option value="efectivo">Efectivo</option>
+              <option value="tarjeta">Tarjeta / transferencia</option>
+              <option value="credito">Crédito (fiado)</option>
+            </select>
+          </label>
+          <label id="campo-cliente" hidden>Cliente
+            <select id="venta-cliente"></select>
+          </label>
+          <label id="campo-recibido">Recibido
+            <input id="recibido" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </label>
+          <div class="cambio" id="cambio"></div>
+          <button id="btn-cobrar" class="grande">Cobrar (F2)</button>
+          <button id="btn-vaciar" class="sec">Cancelar venta</button>
+        </aside>
+      </div>
+    </section>
+
+    <!-- PRODUCTOS -->
+    <section class="vista" id="vista-productos">
+      <div class="barra">
+        <input id="filtro-productos" type="search" placeholder="Buscar producto…">
+        <label class="check"><input type="checkbox" id="solo-bajos"> Solo con poco stock</label>
+        <button id="btn-nuevo-producto">+ Producto</button>
+        <button id="btn-importar" class="sec">Importar CSV</button>
+        <button id="btn-exportar-productos" class="sec">Exportar CSV</button>
+        <input type="file" id="archivo-csv" accept=".csv,text/csv" hidden>
+      </div>
+      <div class="resumen" id="resumen-inventario"></div>
+      <div class="tabla-wrap panel">
+        <table class="tabla" id="tabla-productos">
+          <thead><tr><th>Código</th><th>Producto</th><th>Marca</th><th class="num">Precio</th><th class="num">Mayoreo</th><th class="num">Stock</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section class="vista" id="vista-clientes">
+      <div class="barra">
+        <input id="filtro-clientes" type="search" placeholder="Buscar cliente…">
+        <button id="btn-nuevo-cliente">+ Cliente</button>
+      </div>
+      <div class="resumen" id="resumen-clientes"></div>
+      <div class="tabla-wrap panel">
+        <table class="tabla" id="tabla-clientes">
+          <thead><tr><th>Cliente</th><th>Teléfono</th><th class="num">Límite</th><th class="num">Debe</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- CAJA -->
+    <section class="vista" id="vista-caja">
+      <div class="barra">
+        <button id="btn-entrada" class="sec">+ Entrada de efectivo</button>
+        <button id="btn-salida" class="sec">− Salida de efectivo</button>
+        <button id="btn-corte">Hacer corte de caja</button>
+      </div>
+      <div class="tarjetas" id="tarjetas-caja"></div>
+      <h3>Ventas desde el último corte</h3>
+      <div class="tabla-wrap panel">
+        <table class="tabla" id="tabla-ventas">
+          <thead><tr><th>Folio</th><th>Hora</th><th>Pago</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3>Cortes anteriores</h3>
+      <div class="tabla-wrap panel">
+        <table class="tabla" id="tabla-cortes">
+          <thead><tr><th>Fecha</th><th class="num">Ventas</th><th class="num">Efectivo esperado</th><th class="num">Contado</th><th class="num">Diferencia</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="vista" id="vista-ajustes">
+      <form class="panel form" id="form-ajustes">
+        <h3>Datos del negocio (salen en el ticket)</h3>
+        <label>Nombre del negocio <input name="negocio"></label>
+        <label>Dirección <input name="direccion"></label>
+        <label>Teléfono <input name="telefono"></label>
+        <label>Mensaje al final del ticket <input name="pie" placeholder="¡Gracias por su compra!"></label>
+        <label>Avisar stock bajo cuando queden (si el producto no tiene mínimo)
+          <input name="stockMinDefault" type="number" min="0" step="1">
+        </label>
+        <button>Guardar</button>
+      </form>
+      <div class="panel form">
+        <h3>Respaldo</h3>
+        <p class="muted">Todo se guarda solo en este navegador. Descarga un respaldo seguido para no perder tus datos.</p>
+        <div class="fila">
+          <button id="btn-respaldo">Descargar respaldo</button>
+          <button id="btn-restaurar" class="sec">Restaurar respaldo</button>
+          <input type="file" id="archivo-respaldo" accept=".json,application/json" hidden>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Ventana para formularios -->
+  <dialog id="modal">
+    <form method="dialog" id="modal-form" class="form">
+      <h3 id="modal-titulo"></h3>
+      <div id="modal-cuerpo"></div>
+      <div class="fila fin">
+        <button value="cancelar" class="sec" id="modal-cancelar" formnovalidate>Cancelar</button>
+        <button value="ok" id="modal-ok">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modal-camara">
+    <div class="form">
+      <h3>Apunta al código de barras</h3>
+      <video id="video" playsinline muted></video>
+      <div class="fila fin"><button class="sec" id="btn-cerrar-camara">Cerrar</button></div>
+    </div>
+  </dialog>
+
+  <div id="ticket" class="ticket"></div>
+  <div id="aviso" class="aviso" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
