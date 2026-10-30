@@ -284,6 +284,8 @@ input:focus, select:focus { outline: none; border-color: var(--primary); box-sha
 @media (prefers-color-scheme: dark) {
   .prod .inicial { background: hsl(var(--h, 222) 60% 50% / 0.16); color: hsl(var(--h, 222) 85% 72%); }
 }
+.prod .foto { width: 100%; height: 72px; object-fit: cover; border-radius: 9px; background: var(--surface-2); }
+.mosaico.con-fotos .prod .inicial { width: 100%; height: 72px; font-size: 26px; }
 .prod .nombre { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .prod .pie { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
 .prod .precio { font-weight: 700; font-size: 15px; }
@@ -360,6 +362,9 @@ button.cobrar kbd { color: #fff; }
 .tabla th:last-child { border-top-right-radius: var(--radius); }
 .tabla td:nth-child(2) { white-space: normal; }
 .tabla .num { text-align: right; }
+.con-foto { display: flex; align-items: center; gap: 12px; }
+.mini { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.mini .ic { width: 16px; height: 16px; opacity: 0.5; }
 .tabla .acc { text-align: right; }
 .tabla .acc button { margin-left: 2px; }
 .tabla tr.cancelada td { text-decoration: line-through; color: var(--muted); }
@@ -393,6 +398,10 @@ button.cobrar kbd { color: #fff; }
 .form > .muted { margin: -6px 0 4px; font-size: 14px; }
 .form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
 .form .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.con-boton { display: flex; gap: 8px; }
+.con-boton input { flex: 1; min-width: 0; }
+.con-boton button { white-space: nowrap; }
+input[type=file] { padding: 7px; font-size: 13px; }
 .fila { display: flex; gap: 8px; flex-wrap: wrap; }
 .fila.fin { justify-content: flex-end; }
 #modal-cuerpo { display: flex; flex-direction: column; gap: 12px; }
@@ -429,7 +438,7 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
   animation: aparecer 0.18s ease-out;
 }
 
-.ticket { display: none; }
+.ticket, .etiquetas { display: none; }
 
 /* ---------- Pantallas chicas ---------- */
 @media (max-width: 1100px) {
@@ -454,6 +463,8 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
   @page { margin: 0; }
   body { display: block; background: #fff; color: #000; padding: 0; }
   .lateral, main, dialog, .aviso { display: none !important; }
+  body[data-imprimir="etiquetas"] .ticket { display: none !important; }
+  body[data-imprimir="etiquetas"] .etiquetas { display: block; }
   .ticket { display: block; width: 72mm; padding: 4mm; font: 12px/1.3 "Courier New", monospace; }
   .ticket h4 { text-align: center; margin: 0 0 2px; font-size: 14px; }
   .ticket .c { text-align: center; }
@@ -461,4 +472,15 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
   .ticket td { vertical-align: top; padding: 1px 0; }
   .ticket .r { text-align: right; }
   .ticket hr { border: 0; border-top: 1px dashed #000; margin: 4px 0; }
+
+  /* Etiquetas con código de barras */
+  .etiqueta { font-family: Arial, sans-serif; color: #000; text-align: center; overflow: hidden; break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .et-nombre { font-size: 9pt; font-weight: 700; line-height: 1.1; max-height: 2.2em; overflow: hidden; }
+  .et-precio { font-size: 12pt; font-weight: 800; }
+  .etiqueta svg { max-width: 100%; height: auto; }
+  .etiquetas.rollo .etiqueta { width: 50mm; height: 25mm; padding: 1.5mm 2mm; break-after: page; }
+  .etiquetas.rollo .et-nombre { font-size: 7.5pt; }
+  .etiquetas.rollo .et-precio { font-size: 10pt; }
+  .etiquetas.hoja { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 2mm; padding: 10mm 8mm; }
+  .etiquetas.hoja .etiqueta { height: 30mm; border: 1px dashed #bbb; padding: 2mm; }
 }
