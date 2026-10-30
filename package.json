@@ -44,14 +44,12 @@
       "shortcutName": "Punto de Venta",
       "language": "3082"
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "PaucoXD",
-        "repo": "punto-de-venta",
-        "releaseType": "release"
-      }
-    ]
+    "publish": {
+      "provider": "github",
+      "owner": "PaucoXD",
+      "repo": "punto-de-venta",
+      "releaseType": "draft"
+    }
   },
   "dependencies": {
     "electron-updater": "6.3.9"

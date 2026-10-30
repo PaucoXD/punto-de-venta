@@ -65,9 +65,24 @@ jobs:
       - name: Construir
         if: steps.version.outputs.publicar != 'true'
         run: npm run instalador
-      - name: Construir y publicar en Releases
+      # Se sube como borrador y se publica hasta que ya están el .exe y el latest.yml,
+      # para que las apps nunca encuentren una versión a medio subir.
+      # Si la Release ya existe (creada a mano con su etiqueta), se sube directo a ella.
+      - name: Construir y subir a Releases
         if: steps.version.outputs.publicar == 'true'
-        run: npm run publicar
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            npm run publicar -- -c.publish.releaseType=release
+          else
+            npm run publicar
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publicar la versión
+        if: steps.version.outputs.publicar == 'true' && !startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: gh release edit "v${{ steps.version.outputs.version }}" --draft=false --latest --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
