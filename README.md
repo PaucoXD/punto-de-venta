@@ -31,11 +31,9 @@ Guarda la hoja como CSV con una fila de encabezados. Se reconocen estas columnas
 - **Navegador / app instalada desde Chrome o Edge**: se actualiza sola. Cada vez que abre con internet baja lo último de GitHub Pages.
 - **App de Windows (.exe)**: igual que Expedito, revisa sola si hay versión nueva (al abrir y cada 4 horas), la descarga en segundo plano y pregunta si reiniciar para instalarla. También está en el menú *Ayuda → Buscar actualizaciones*.
 
-Para sacar una versión nueva:
+**Las versiones salen solas:** cada vez que se hace merge de un PR a `main`, GitHub Actions publica la versión siguiente en Releases (`v1.0.1` → `v1.0.2` → …) con el `.exe` y el `latest.yml`, y en unos minutos las apps instaladas la encuentran. Si el merge solo cambia archivos `.md`, no sale versión.
 
-1. Haz merge de los cambios a `main`.
-2. En GitHub ve a **Releases → Draft a new release**, escribe una etiqueta nueva mayor que la anterior (por ejemplo `v1.0.1`) en "Choose a tag → Create new tag", y dale **Publish release**. (O desde la terminal: `git tag v1.0.1 && git push origin v1.0.1`.)
-3. GitHub Actions construye el instalador y sube a esa Release el `.exe` y el `latest.yml`. En unos minutos las apps instaladas la encuentran.
+Para saltar a otra versión (por ejemplo `v1.1.0`), crea la Release a mano con esa etiqueta; las siguientes seguirán desde ahí.
 
 Cada forma de abrirla guarda sus propios datos. Para pasar los datos de una a otra usa *Ajustes → Descargar respaldo* y *Restaurar respaldo*.
 
