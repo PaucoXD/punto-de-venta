@@ -1098,7 +1098,7 @@ function pintarMarca() {
 // Sin licencia la app se puede usar PRUEBA_DIAS días. La licencia es una clave firmada con la llave
 // privada del proveedor (herramientas/licencias.html) y solo vale en el equipo con ese código.
 // Se guarda aparte de los datos para que un respaldo no la lleve a otro equipo.
-const LLAVE_PUBLICA = { kty: 'EC', crv: 'P-256', x: '30nqUJ9uMZwUO6jBHtdXlLzdLVUaCWWPf04S4KiWlIM', y: 'qi__-R3KUB3CKw1vTsqSuKc1Cn_uKXqoDYi9FIS3utE' };
+const LLAVE_PUBLICA = { kty: 'EC', crv: 'P-256', x: 'kHXhaBu9s5AaC9AItybUiMRPN0yRd1JNrBns1cmbEQc', y: 'tkCw8ypt99WGgBO4j8xSngMu1j18rDlC4foMzOQwQiQ' };
 const PRUEBA_DIAS = 15;
 const CLAVE_LICENCIA = 'pdv-licencia-v1';
 const DIA = 864e5;
