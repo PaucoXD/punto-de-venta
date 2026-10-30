@@ -48,6 +48,10 @@
     <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /> <circle cx="9" cy="9" r="2" /> <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /> <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></symbol>
     <symbol id="i-image-plus" viewBox="0 0 24 24"><path d="M16 5h6" /> <path d="M19 2v6" /> <path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5" /> <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /> <circle cx="9" cy="9" r="2" /></symbol>
+    <symbol id="i-key-round" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /> <path d="m9 12 2 2 4-4" /></symbol>
+    <symbol id="i-delete" viewBox="0 0 24 24"><path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" /> <path d="m12 9 6 6" /> <path d="m18 9-6 6" /></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /> <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></symbol>
   </svg>
 
   <aside class="lateral">
@@ -65,10 +69,16 @@
       <button data-vista="caja"><svg class="ic"><use href="#i-wallet"/></svg><span>Caja</span></button>
       <button data-vista="ajustes"><svg class="ic"><use href="#i-settings"/></svg><span>Ajustes</span></button>
     </nav>
+    <div class="usuario" id="usuario-actual" hidden>
+      <span class="avatar" id="usuario-inicial"></span>
+      <div><strong id="usuario-nombre"></strong><small id="usuario-rol"></small></div>
+      <button class="btn-icono" id="btn-bloquear" title="Cambiar de usuario"><svg class="ic"><use href="#i-lock"/></svg></button>
+    </div>
     <button id="btn-instalar" class="instalar" hidden><svg class="ic"><use href="#i-monitor-down"/></svg><span>Instalar en este equipo</span></button>
   </aside>
 
   <main>
+    <div class="banda-licencia" id="banda-licencia" hidden></div>
     <!-- VENDER -->
     <section class="vista activa" id="vista-vender">
       <div class="venta">
@@ -203,7 +213,7 @@
       <h3>Ventas del turno</h3>
       <div class="tabla-wrap panel">
         <table class="tabla" id="tabla-ventas">
-          <thead><tr><th>Folio</th><th>Hora</th><th>Pago</th><th>Cliente</th><th class="num">Total</th><th></th></tr></thead>
+          <thead><tr><th>Folio</th><th>Hora</th><th>Pago</th><th>Cliente</th><th>Atendió</th><th class="num">Total</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -235,6 +245,24 @@
           </label>
           <div class="fila fin"><button>Guardar</button></div>
         </form>
+        <form class="panel form" id="form-licencia" autocomplete="off">
+          <h3><svg class="ic"><use href="#i-key-round"/></svg> Licencia</h3>
+          <p id="estado-licencia"></p>
+          <div class="codigo-equipo">
+            <span>Código de este equipo</span>
+            <strong id="codigo-equipo"></strong>
+            <button type="button" class="btn-icono" id="btn-copiar-equipo" title="Copiar"><svg class="ic"><use href="#i-copy"/></svg></button>
+          </div>
+          <p class="muted">Para activar, manda este código a tu proveedor y pega aquí la clave que te dé.</p>
+          <label>Clave de licencia <input id="clave-licencia" placeholder="PDV-…" required></label>
+          <div class="fila fin"><button><svg class="ic"><use href="#i-circle-check"/></svg>Activar</button></div>
+        </form>
+        <div class="panel form">
+          <h3><svg class="ic"><use href="#i-shield-check"/></svg> Usuarios</h3>
+          <p class="muted">El dueño puede todo. Los cajeros venden, cobran, dan abonos y hacen corte; para cambiar un precio o cancelar una venta piden el PIN del dueño.</p>
+          <ul class="usuarios" id="lista-usuarios"></ul>
+          <div class="fila"><button type="button" class="sec" id="btn-nuevo-usuario"></button></div>
+        </div>
         <div class="panel form">
           <h3><svg class="ic"><use href="#i-history"/></svg> Respaldo</h3>
           <p class="muted">Todo se guarda solo en este equipo. Descarga un respaldo seguido para no perder tus datos.</p>
@@ -267,6 +295,25 @@
       <div class="fila fin"><button class="sec" id="btn-cerrar-camara">Cerrar</button></div>
     </div>
   </dialog>
+
+  <!-- Entrada con PIN (solo cuando hay usuarios) -->
+  <div class="bloqueo" id="bloqueo" hidden>
+    <form class="entrar" id="form-entrar" autocomplete="off">
+      <img src="iconos/icono.svg" alt="" width="52" height="52">
+      <h2 id="bloqueo-negocio"></h2>
+      <p class="muted">¿Quién va a usar la caja?</p>
+      <div class="quienes" id="bloqueo-usuarios"></div>
+      <input id="pin" type="password" inputmode="numeric" aria-label="PIN" autocomplete="off">
+      <div class="pin-puntos" id="pin-puntos"></div>
+      <div class="teclado" id="teclado">
+        <button type="button" data-tecla="1">1</button><button type="button" data-tecla="2">2</button><button type="button" data-tecla="3">3</button>
+        <button type="button" data-tecla="4">4</button><button type="button" data-tecla="5">5</button><button type="button" data-tecla="6">6</button>
+        <button type="button" data-tecla="7">7</button><button type="button" data-tecla="8">8</button><button type="button" data-tecla="9">9</button>
+        <button type="button" data-borrar title="Borrar"><svg class="ic"><use href="#i-delete"/></svg></button><button type="button" data-tecla="0">0</button><button class="ok">Entrar</button>
+      </div>
+      <button type="button" class="link" id="btn-olvide">Olvidé mi PIN</button>
+    </form>
+  </div>
 
   <div id="ticket" class="ticket"></div>
   <div id="etiquetas" class="etiquetas"></div>

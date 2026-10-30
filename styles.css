@@ -119,6 +119,54 @@ body {
 }
 .instalar:hover { background: rgba(34, 197, 94, 0.22); }
 
+/* Usuario que tiene la caja */
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.usuario { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.05); }
+.usuario:not([hidden]) ~ .instalar { margin-top: 0; }
+.usuario .avatar { background: #2453d6; color: #fff; }
+.usuario div { flex: 1; min-width: 0; }
+.usuario strong { display: block; color: #fff; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usuario small { color: #64748b; font-size: 12px; }
+.usuario .btn-icono { color: var(--lateral-text); }
+.usuario .btn-icono:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+/* Aviso de prueba o licencia */
+.banda-licencia { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 18px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-weight: 500; }
+.banda-licencia span:first-of-type { flex: 1; }
+.banda-licencia.bloqueada { background: var(--danger-soft); color: var(--danger); }
+.banda-licencia button { padding: 6px 12px; }
+.codigo-equipo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 12px 14px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.codigo-equipo span { flex-basis: 100%; color: var(--muted); font-size: 13px; }
+.codigo-equipo strong { flex: 1; font: 700 20px/1 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 2px; }
+#estado-licencia { margin: 0; }
+.usuarios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.usuarios li { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.usuarios li:last-child { border-bottom: 0; }
+.usuarios .crece { flex: 1; line-height: 1.3; }
+
+/* Pantalla de entrada con PIN */
+.bloqueo { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; overflow-y: auto; background: radial-gradient(circle at 30% 20%, #1e293b, var(--lateral) 70%); }
+.entrar { width: min(380px, 100%); background: var(--surface); color: var(--text); border-radius: 22px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.6); }
+.entrar img { border-radius: 14px; }
+.entrar h2 { margin: 0; font-size: 20px; text-align: center; }
+.entrar > .muted { margin: -6px 0 0; }
+.entrar.error { animation: temblar 0.3s; }
+@keyframes temblar { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.quienes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; }
+.quien { display: flex; align-items: center; gap: 8px; background: var(--surface-2); color: var(--text); border: 2px solid var(--border); padding: 6px 12px 6px 6px; border-radius: 99px; text-align: left; line-height: 1.15; }
+.quien small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
+.quien:hover { background: var(--primary-soft); }
+.quien.activa { border-color: var(--primary); background: var(--primary-soft); }
+#pin { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.pin-puntos { display: flex; gap: 12px; height: 16px; margin: 6px 0; }
+.pin-puntos i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); }
+.pin-puntos i.lleno { background: var(--primary); border-color: var(--primary); }
+.teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.teclado button { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); font-size: 22px; font-weight: 600; padding: 14px 0; border-radius: 14px; display: grid; place-items: center; }
+.teclado button:hover { background: var(--primary-soft); }
+.teclado button.ok { background: var(--primary); color: var(--primary-text); border-color: var(--primary); font-size: 16px; }
+.teclado button.ok:hover { background: var(--primary-hover); }
+
 main { padding: 24px 28px; min-width: 0; }
 .vista { display: none; }
 .vista.activa { display: block; animation: aparecer 0.18s ease-out; }
@@ -448,6 +496,8 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
   body { grid-template-columns: 1fr; padding-bottom: 68px; }
   .lateral { position: fixed; bottom: 0; top: auto; left: 0; right: 0; height: auto; padding: 6px; z-index: 20; flex-direction: row; gap: 0; }
   .marca, .instalar { display: none !important; }
+  .usuario { margin: 0; padding: 0 4px; background: none; }
+  .usuario .avatar, .usuario div { display: none; }
   .tabs { flex-direction: row; flex: 1; justify-content: space-around; }
   .tabs button { flex-direction: column; gap: 3px; padding: 6px 4px; font-size: 11px; flex: 1; }
   .tabs button.activa { box-shadow: none; }
@@ -462,7 +512,7 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
 @media print {
   @page { margin: 0; }
   body { display: block; background: #fff; color: #000; padding: 0; }
-  .lateral, main, dialog, .aviso { display: none !important; }
+  .lateral, main, dialog, .aviso, .bloqueo { display: none !important; }
   body[data-imprimir="etiquetas"] .ticket { display: none !important; }
   body[data-imprimir="etiquetas"] .etiquetas { display: block; }
   .ticket { display: block; width: 72mm; padding: 4mm; font: 12px/1.3 "Courier New", monospace; }

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Generador de licencias</title>
+  <link rel="icon" type="image/svg+xml" href="../iconos/icono.svg">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { display: block; padding: 24px 16px 48px; }
+    .pagina { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .pagina > header { display: flex; align-items: center; gap: 12px; }
+    .pagina > header img { border-radius: 12px; }
+    textarea { font: 13px/1.4 ui-monospace, Consolas, monospace; width: 100%; min-height: 84px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); resize: vertical; word-break: break-all; }
+    .alerta { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-weight: 500; }
+    .historial td { white-space: normal; }
+    .boton-enlace { display: inline-flex; align-items: center; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 500; }
+    .boton-enlace:hover { background: var(--primary-soft); }
+  </style>
+</head>
+<body>
+  <!-- Herramienta para quien vende el sistema. La llave privada se crea y se queda en este navegador. -->
+  <div class="pagina">
+    <header>
+      <img src="../iconos/icono.svg" alt="" width="44" height="44">
+      <div><h1>Generador de licencias</h1><span class="muted">Solo para ti, el proveedor del Punto de Venta.</span></div>
+    </header>
+
+    <section class="panel form" id="sin-llaves" hidden>
+      <h3>1. Crea tus llaves (una sola vez)</h3>
+      <p class="muted">Se crea una llave privada que se queda en este navegador y se descarga una copia de respaldo. No la compartas con nadie: con ella se hacen licencias.</p>
+      <div class="fila">
+        <button id="btn-crear">Crear mis llaves</button>
+        <button class="sec" id="btn-cargar">Ya tengo mi respaldo</button>
+        <input type="file" id="archivo-llaves" accept=".json,application/json" hidden>
+      </div>
+    </section>
+
+    <section class="panel form" id="con-llaves" hidden>
+      <h3>Tu llave pública</h3>
+      <p class="muted">Esta sí se puede compartir. Va dentro de la app para que reconozca tus licencias.</p>
+      <textarea id="publica" readonly></textarea>
+      <div class="fila">
+        <button class="sec" id="btn-copiar-publica">Copiar llave pública</button>
+        <button class="sec" id="btn-respaldo">Descargar respaldo de llaves</button>
+      </div>
+      <p class="alerta" id="aviso-publica" hidden>Esta llave no es la que trae la app. Manda la llave pública para ponerla en la app; mientras tanto, tus licencias no van a funcionar.</p>
+    </section>
+
+    <form class="panel form" id="form-generar" hidden autocomplete="off">
+      <h3>Generar</h3>
+      <label>¿Qué generar?
+        <select name="tipo">
+          <option value="licencia">Licencia</option>
+          <option value="rescate">Llave de rescate (dueño olvidó su PIN)</option>
+        </select>
+      </label>
+      <label>Nombre del negocio <input name="negocio" required></label>
+      <div class="dos">
+        <label>Código del equipo <input name="equipo" required placeholder="K7F2-9QXA" style="text-transform:uppercase"></label>
+        <label>Duración
+          <select name="meses">
+            <option value="1">1 mes</option>
+            <option value="3">3 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12">1 año</option>
+            <option value="0">Sin vencimiento</option>
+          </select>
+        </label>
+      </div>
+      <div class="fila fin"><button>Generar</button></div>
+      <div id="resultado" hidden>
+        <p id="resultado-texto"></p>
+        <textarea id="clave" readonly></textarea>
+        <div class="fila">
+          <button type="button" class="sec" id="btn-copiar-clave">Copiar</button>
+          <a class="boton-enlace" id="btn-whatsapp" target="_blank" rel="noopener">Mandar por WhatsApp</a>
+        </div>
+      </div>
+    </form>
+
+    <section class="panel form" id="historial-panel" hidden>
+      <h3>Licencias que has dado</h3>
+      <div class="tabla-wrap"><table class="tabla historial"><thead><tr><th>Fecha</th><th>Negocio</th><th>Equipo</th><th>Vence</th></tr></thead><tbody id="historial"></tbody></table></div>
+    </section>
+  </div>
+  <div id="aviso" class="aviso" hidden></div>
+
+  <script>
+  'use strict';
+  // Debe ser la misma que LLAVE_PUBLICA en app.js
+  const LLAVE_DE_LA_APP = '{"kty":"EC","crv":"P-256","x":"30nqUJ9uMZwUO6jBHtdXlLzdLVUaCWWPf04S4KiWlIM","y":"qi__-R3KUB3CKw1vTsqSuKc1Cn_uKXqoDYi9FIS3utE"}';
+  const CLAVE = 'pdv-llaves-proveedor';
+  const ALGO = { name: 'ECDSA', namedCurve: 'P-256' };
+  const $ = (s) => document.querySelector(s);
+  const b64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let avisoTimer;
+  function aviso(t) { const el = $('#aviso'); el.textContent = t; el.hidden = false; clearTimeout(avisoTimer); avisoTimer = setTimeout(() => (el.hidden = true), 2600); }
+
+  const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE)) || {}; } catch (e) { return {}; } };
+  const escribir = (d) => localStorage.setItem(CLAVE, JSON.stringify(d));
+  let datos = leer(); // { privada: jwk, publica: jwk, historial: [] }
+  const textoPublica = () => JSON.stringify({ kty: 'EC', crv: 'P-256', x: datos.publica.x, y: datos.publica.y });
+
+  function descargarRespaldo() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ privada: datos.privada, publica: datos.publica })], { type: 'application/json' }));
+    a.download = 'llaves-licencias-NO-COMPARTIR.json';
+    a.click();
+  }
+
+  function pintar() {
+    const hay = !!datos.privada;
+    $('#sin-llaves').hidden = hay;
+    $('#con-llaves').hidden = !hay;
+    $('#form-generar').hidden = !hay;
+    $('#historial-panel').hidden = !(datos.historial || []).length;
+    if (!hay) return;
+    $('#publica').value = textoPublica();
+    $('#aviso-publica').hidden = LLAVE_DE_LA_APP === textoPublica();
+    $('#historial').innerHTML = [...(datos.historial || [])].reverse().map((h) =>
+      `<tr><td>${esc(h.f)}</td><td>${esc(h.n)}${h.t === 'rescate' ? ' <span class="badge neutro">rescate</span>' : ''}</td><td><code>${esc(h.e.slice(0, 4) + "-" + h.e.slice(4))}</code></td><td>${esc(h.h || 'Nunca')}</td></tr>`).join('');
+  }
+
+  $('#btn-crear').addEventListener('click', async () => {
+    const par = await crypto.subtle.generateKey(ALGO, true, ['sign', 'verify']);
+    datos = { privada: await crypto.subtle.exportKey('jwk', par.privateKey), publica: await crypto.subtle.exportKey('jwk', par.publicKey), historial: [] };
+    escribir(datos);
+    descargarRespaldo();
+    pintar();
+    aviso('Llaves creadas. Guarda bien el archivo que se descargó.');
+  });
+  $('#btn-cargar').addEventListener('click', () => $('#archivo-llaves').click());
+  $('#archivo-llaves').addEventListener('change', async (e) => {
+    try {
+      const d = JSON.parse(await e.target.files[0].text());
+      await crypto.subtle.importKey('jwk', d.privada, ALGO, false, ['sign']);
+      datos = { privada: d.privada, publica: d.publica, historial: datos.historial || [] };
+      escribir(datos);
+      pintar();
+      aviso('Llaves cargadas');
+    } catch (err) {
+      aviso('Ese archivo no es un respaldo de llaves');
+    }
+    e.target.value = '';
+  });
+  $('#btn-respaldo').addEventListener('click', descargarRespaldo);
+  const copiar = async (t) => { try { await navigator.clipboard.writeText(t); aviso('Copiado'); } catch (e) { aviso('Selecciónalo y cópialo a mano'); } };
+  $('#btn-copiar-publica').addEventListener('click', () => copiar(textoPublica()));
+  $('#btn-copiar-clave').addEventListener('click', () => copiar($('#clave').value));
+
+  // Misma forma que espera leerClave() en app.js: PDV-<datos>.<firma>
+  $('#form-generar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    const codigo = f.equipo.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (codigo.length !== 8) return aviso('El código del equipo tiene 8 letras y números, ej. K7F2-9QXA');
+    const tipo = f.tipo.value;
+    const hoy = new Date();
+    const dia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let hasta = '';
+    if (tipo === 'rescate') hasta = dia(new Date(hoy.getTime() + 3 * 864e5));
+    else if (Number(f.meses.value) > 0) { const d = new Date(hoy); d.setMonth(d.getMonth() + Number(f.meses.value)); hasta = dia(d); }
+    const carga = { v: 1, t: tipo, n: f.negocio.value.trim(), e: codigo, h: hasta, f: dia(hoy) };
+    const texto = new TextEncoder().encode(JSON.stringify(carga));
+    const llave = await crypto.subtle.importKey('jwk', datos.privada, ALGO, false, ['sign']);
+    const firma = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, llave, texto);
+    const clave = `PDV-${b64(texto)}.${b64(firma)}`;
+
+    const equipo = codigo.slice(0, 4) + '-' + codigo.slice(4);
+    const instrucciones = tipo === 'rescate'
+      ? 'En la pantalla de entrada toca "Olvidé mi PIN" y pega esta llave.'
+      : 'En la app ve a Ajustes → Licencia, pega esta clave y toca Activar.';
+    $('#resultado').hidden = false;
+    $('#resultado-texto').innerHTML = `<b>${tipo === 'rescate' ? 'Llave de rescate' : 'Licencia'}</b> para ${esc(carga.n)} · equipo ${equipo} · ${hasta ? `vale hasta el ${hasta}` : 'sin vencimiento'}`;
+    $('#clave').value = clave;
+    $('#btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(`${instrucciones}\n\n${clave}`);
+    datos.historial = [...(datos.historial || []), carga];
+    escribir(datos);
+    pintar();
+  });
+
+  if (!crypto.subtle) document.body.innerHTML = '<p class="pagina alerta">Abre esta página desde https://paucoxd.github.io/punto-de-venta/herramientas/licencias.html</p>';
+  else pintar();
+  </script>
+</body>
+</html>
