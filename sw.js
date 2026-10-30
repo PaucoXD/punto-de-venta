@@ -1,6 +1,6 @@
 // Guarda la app para que abra sin internet. Cambia VERSION al publicar cambios.
-const VERSION = 'pdv-1';
-const ARCHIVOS = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest', 'iconos/icono-192.png', 'iconos/icono-512.png'];
+const VERSION = 'pdv-2';
+const ARCHIVOS = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest', 'iconos/icono.svg', 'iconos/icono-192.png', 'iconos/icono-512.png', 'fuentes/inter.woff2'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));

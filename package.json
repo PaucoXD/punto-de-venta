@@ -20,7 +20,7 @@
     "productName": "Punto de Venta",
     "artifactName": "Punto-de-Venta-${version}-instalador.${ext}",
     "directories": { "output": "dist" },
-    "files": ["index.html", "app.js", "styles.css", "iconos/**", "electron/**", "package.json"],
+    "files": ["index.html", "app.js", "styles.css", "iconos/**", "fuentes/**", "electron/**", "package.json"],
     "win": { "target": "nsis", "icon": "iconos/icono.ico" },
     "nsis": {
       "oneClick": false,
