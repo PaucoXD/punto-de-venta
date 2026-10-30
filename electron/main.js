@@ -2,6 +2,7 @@
 const { app, BrowserWindow, Menu, dialog, shell, ipcMain, net } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
+const { execFile } = require('child_process');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -47,6 +48,55 @@ ipcMain.handle('mercado-pago', async (_e, { metodo = 'GET', ruta, token, cuerpo,
   } catch (err) {
     return { ok: false, estado: 0, datos: { message: 'Sin conexión con Mercado Pago' } };
   }
+});
+
+// ---------- Impresora de tickets ----------
+ipcMain.handle('impresoras', async (e) => (await e.sender.getPrintersAsync()).map((i) => ({ nombre: i.name, predeterminada: !!i.isDefault })));
+
+// Imprime la página tal como está (el ticket ya está armado) sin abrir la ventana de impresión
+ipcMain.handle('imprimir', (e, { impresora }) => new Promise((resolve) => {
+  e.sender.print({ silent: true, deviceName: impresora || '', printBackground: false, margins: { marginType: 'none' } },
+    (ok, motivo) => resolve({ ok, motivo: ok ? '' : String(motivo || '') }));
+}));
+
+// El cajón va conectado a la impresora de tickets: se abre mandándole el pulso ESC/POS (ESC p) en crudo.
+// Se manda a los dos conectores (pin 2 y pin 5) porque cada cajón usa uno.
+const PULSO_CAJON = [27, 112, 0, 25, 250, 27, 112, 1, 25, 250];
+const SCRIPT_CAJON = `
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public class Crudo {
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] public class DocInfo { public string Nombre; public string Salida; public string Tipo; }
+  [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
+  [DllImport("winspool.drv", SetLastError = true)] static extern bool ClosePrinter(IntPtr h);
+  [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)] static extern int StartDocPrinter(IntPtr h, int nivel, DocInfo di);
+  [DllImport("winspool.drv", SetLastError = true)] static extern bool EndDocPrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError = true)] static extern bool StartPagePrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError = true)] static extern bool EndPagePrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError = true)] static extern bool WritePrinter(IntPtr h, byte[] b, int n, out int escritos);
+  public static bool Mandar(string impresora, byte[] datos) {
+    IntPtr h; if (!OpenPrinter(impresora, out h, IntPtr.Zero)) return false;
+    bool ok = false;
+    if (StartDocPrinter(h, 1, new DocInfo { Nombre = "Abrir cajon", Tipo = "RAW" }) != 0) {
+      if (StartPagePrinter(h)) { int escritos; ok = WritePrinter(h, datos, datos.Length, out escritos); EndPagePrinter(h); }
+      EndDocPrinter(h);
+    }
+    ClosePrinter(h); return ok;
+  }
+}
+"@
+if ([Crudo]::Mandar($env:PDV_IMPRESORA, [byte[]](${PULSO_CAJON.join(',')}))) { exit 0 } else { exit 1 }`;
+
+ipcMain.handle('abrir-cajon', async (e, { impresora }) => {
+  if (process.platform !== 'win32') return { ok: false, motivo: 'Solo en Windows' };
+  // El nombre va por variable de entorno para no meterlo dentro del script
+  const existe = (await e.sender.getPrintersAsync()).some((i) => i.name === impresora);
+  if (!existe) return { ok: false, motivo: 'No se encontró la impresora' };
+  return new Promise((resolve) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(SCRIPT_CAJON, 'utf16le').toString('base64')],
+      { env: { ...process.env, PDV_IMPRESORA: impresora }, windowsHide: true, timeout: 20000 },
+      (err) => resolve({ ok: !err, motivo: err ? 'La impresora no aceptó la orden' : '' }));
+  });
 });
 
 // ---------- Actualizaciones ----------

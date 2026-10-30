@@ -445,6 +445,8 @@ button.cobrar kbd { color: #fff; }
 .form h3 { margin: 0; font-size: 17px; }
 .form > .muted { margin: -6px 0 4px; font-size: 14px; }
 .form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.form label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.check input[type=checkbox] { width: 18px; height: 18px; padding: 0; margin: 0; flex: none; accent-color: var(--primary); }
 .form .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .con-boton { display: flex; gap: 8px; }
 .con-boton input { flex: 1; min-width: 0; }

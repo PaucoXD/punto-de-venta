@@ -335,6 +335,29 @@
           <div class="fila"><button type="button" class="sec" id="btn-nuevo-usuario"></button></div>
         </div>
         <div class="panel form">
+          <h3><svg class="ic"><use href="#i-printer"/></svg> Impresora de tickets y cajón</h3>
+          <p class="muted">El ticket sale solo, sin la ventana de impresión, y el cajón de dinero se abre al cobrar.</p>
+          <p class="muted" id="imp-no-disponible" hidden>Disponible en la app de escritorio para Windows.</p>
+          <div id="form-imp" hidden>
+            <label>Impresora de tickets
+              <select id="imp-impresora"></select>
+            </label>
+            <label class="check"><input type="checkbox" id="imp-auto"> Imprimir el ticket al cobrar, sin preguntar</label>
+            <label>Cajón de dinero
+              <select id="imp-cajon">
+                <option value="nunca">No tengo cajón</option>
+                <option value="efectivo">Abrir al cobrar en efectivo</option>
+                <option value="siempre">Abrir en cada venta</option>
+              </select>
+            </label>
+            <p class="muted chico">El cajón debe ir conectado con su cable a la impresora de tickets.</p>
+            <div class="fila">
+              <button type="button" class="sec" id="btn-imp-prueba"><svg class="ic"><use href="#i-printer"/></svg>Imprimir prueba</button>
+              <button type="button" class="sec" id="btn-imp-cajon">Abrir cajón</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel form">
           <h3><svg class="ic"><use href="#i-credit-card"/></svg> Terminal Mercado Pago Point</h3>
           <p class="muted">Los cobros con tarjeta se mandan solos a tu terminal y la venta se registra cuando el pago queda aprobado.</p>
           <p class="muted" id="mp-no-disponible" hidden>Disponible en la app de escritorio para Windows.</p>
