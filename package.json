@@ -28,6 +28,7 @@
       "app.js",
       "styles.css",
       "iconos/**",
+      "fuentes/**",
       "electron/**",
       "package.json"
     ],

@@ -43,3 +43,10 @@ npm install
 npm run escritorio   # abre la app en una ventana
 npm run instalador   # crea el .exe en dist/ (en Windows)
 ```
+
+## Créditos
+
+- Íconos: [Lucide](https://lucide.dev) (licencia ISC), incluidos dentro de `index.html`.
+- Letra: [Inter](https://rsms.me/inter/) (licencia SIL OFL), en `fuentes/`.
+
+Ambos van dentro del proyecto, así que la app se ve igual sin internet.
