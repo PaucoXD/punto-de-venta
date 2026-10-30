@@ -488,6 +488,20 @@ video { width: 100%; border-radius: var(--radius-sm); background: #000; }
 
 .ticket, .etiquetas { display: none; }
 
+/* ---------- Terminal Mercado Pago ---------- */
+.terminal-check { margin-bottom: 8px; font-size: 14px; color: var(--text); }
+#campo-referencia > label:not(.check) { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.cobro-terminal { align-items: center; text-align: center; }
+.cobro-terminal .ic.grande { width: 44px; height: 44px; color: var(--primary); }
+.cobro-terminal strong { font-size: 34px; letter-spacing: -0.02em; }
+.cobro-terminal .fila { align-self: stretch; }
+.terminal-estado { margin: 0; color: var(--muted); min-height: 2.8em; }
+.terminal-estado.error { color: var(--danger); font-weight: 500; }
+.mp-terminal { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 8px; }
+.mp-terminal.activa { border-color: var(--primary); background: var(--primary-soft); }
+#form-mp { display: flex; flex-direction: column; gap: 12px; }
+#mp-estado { margin: 0; }
+
 /* ---------- Reportes ---------- */
 .filtros-reporte { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .filtros-reporte .chips { margin: 0; }

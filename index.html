@@ -120,9 +120,14 @@
             <label id="campo-cliente" hidden>Cliente
               <select id="venta-cliente"></select>
             </label>
-            <label id="campo-referencia" hidden>Referencia del voucher (opcional)
-              <input id="referencia" placeholder="Autorización o últimos 4 dígitos" autocomplete="off">
-            </label>
+            <div id="campo-referencia" hidden>
+              <label class="check terminal-check" id="campo-terminal" hidden>
+                <input type="checkbox" id="usar-terminal" checked> Cobrar en la terminal Mercado Pago
+              </label>
+              <label>Referencia del voucher (opcional)
+                <input id="referencia" placeholder="Autorización o últimos 4 dígitos" autocomplete="off">
+              </label>
+            </div>
             <div id="campo-recibido" class="recibido">
               <label>Recibido
                 <input id="recibido" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
@@ -136,7 +141,7 @@
               </div>
             </div>
             <div class="cambio" id="cambio"></div>
-            <button id="btn-cobrar" class="cobrar"><svg class="ic"><use href="#i-circle-check"/></svg>Cobrar <kbd>F2</kbd></button>
+            <button id="btn-cobrar" class="cobrar"><svg class="ic"><use href="#i-circle-check"/></svg><span>Cobrar</span> <kbd>F2</kbd></button>
             <button id="btn-vaciar" class="fantasma"><svg class="ic"><use href="#i-trash-2"/></svg>Cancelar venta</button>
           </div>
         </aside>
@@ -330,6 +335,23 @@
           <div class="fila"><button type="button" class="sec" id="btn-nuevo-usuario"></button></div>
         </div>
         <div class="panel form">
+          <h3><svg class="ic"><use href="#i-credit-card"/></svg> Terminal Mercado Pago Point</h3>
+          <p class="muted">Los cobros con tarjeta se mandan solos a tu terminal y la venta se registra cuando el pago queda aprobado.</p>
+          <p class="muted" id="mp-no-disponible" hidden>Disponible en la app de escritorio para Windows.</p>
+          <form id="form-mp" autocomplete="off" hidden>
+            <p id="mp-estado"></p>
+            <label>Access Token de producción
+              <input id="mp-token" type="password" placeholder="APP_USR-…">
+            </label>
+            <p class="muted chico">Sácalo en <a href="https://www.mercadopago.com.mx/developers/panel/app" target="_blank" rel="noopener">mercadopago.com.mx/developers</a> → Tus integraciones → tu app → Credenciales de producción.</p>
+            <div class="fila">
+              <button>Buscar mis terminales</button>
+              <button type="button" class="link peligro" id="btn-mp-quitar" hidden>Desconectar</button>
+            </div>
+            <div id="mp-terminales"></div>
+          </form>
+        </div>
+        <div class="panel form">
           <h3><svg class="ic"><use href="#i-history"/></svg> Respaldo</h3>
           <p class="muted">Todo se guarda solo en este equipo. Descarga un respaldo seguido para no perder tus datos.</p>
           <div class="fila">
@@ -359,6 +381,20 @@
       <h3>Apunta al código de barras</h3>
       <video id="video" playsinline muted></video>
       <div class="fila fin"><button class="sec" id="btn-cerrar-camara">Cerrar</button></div>
+    </div>
+  </dialog>
+
+  <!-- Cobro en la terminal Mercado Pago -->
+  <dialog id="modal-terminal">
+    <div class="form cobro-terminal">
+      <svg class="ic grande"><use href="#i-credit-card"/></svg>
+      <h3>Cobro con tarjeta</h3>
+      <strong id="terminal-total"></strong>
+      <p id="terminal-estado" class="terminal-estado"></p>
+      <div class="fila fin">
+        <button type="button" class="sec" id="btn-cancelar-terminal">Cancelar cobro</button>
+        <button type="button" id="btn-cerrar-terminal" hidden>Entendido</button>
+      </div>
     </div>
   </dialog>
 

@@ -1,5 +1,5 @@
 // Guarda la app para que abra sin internet. Cambia VERSION al publicar cambios.
-const VERSION = 'pdv-7';
+const VERSION = 'pdv-8';
 const ARCHIVOS = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest', 'iconos/icono.svg', 'iconos/icono-192.png', 'iconos/icono-512.png', 'fuentes/inter.woff2', 'vendor/JsBarcode.all.min.js'];
 
 self.addEventListener('install', (e) => {
