@@ -4,7 +4,7 @@
 const CLAVE = 'pdv-datos-v1';
 
 const vacio = () => ({
-  ajustes: { negocio: 'Mi Negocio', direccion: '', telefono: '', pie: '¡Gracias por su compra!', stockMinDefault: 3 },
+  ajustes: { negocio: 'Mi Negocio', direccion: '', telefono: '', pie: '¡Gracias por su compra!', stockMinDefault: 3, comisionTarjeta: 0 },
   productos: [],
   clientes: [],
   ventas: [],
@@ -12,6 +12,7 @@ const vacio = () => ({
   movimientos: [], // entradas y salidas de efectivo
   cortes: [],
   folio: 0,
+  siguienteCodigo: 1, // para los códigos de barras que genera la app
 });
 
 let db = cargar();
@@ -70,7 +71,8 @@ function mostrarVista(nombre) {
 $('#tabs').addEventListener('click', (e) => { const v = boton(e).vista; if (v) mostrarVista(v); });
 
 // ---------- Ventana de formulario ----------
-// campos: [{ nombre, etiqueta, tipo, valor, opciones, requerido, ancho }]
+// campos: [{ nombre, etiqueta, tipo, valor, opciones, requerido, ancho, boton: { texto, alHacerClic(input) } }]
+// tipo 'archivo' devuelve el File elegido (o null)
 function formulario(titulo, campos, textoOk = 'Guardar', textoCancelar = 'Cancelar') {
   const modal = $('#modal');
   $('#modal-titulo').textContent = titulo;
@@ -94,6 +96,10 @@ function formulario(titulo, campos, textoOk = 'Guardar', textoCancelar = 'Cancel
     if (c.opciones) {
       input = document.createElement('select');
       c.opciones.forEach(([v, t]) => input.add(new Option(t, v, false, v === c.valor)));
+    } else if (c.tipo === 'archivo') {
+      input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
     } else {
       input = document.createElement('input');
       input.type = c.tipo || 'text';
@@ -102,7 +108,19 @@ function formulario(titulo, campos, textoOk = 'Guardar', textoCancelar = 'Cancel
     }
     input.name = c.nombre;
     input.required = !!c.requerido;
-    label.appendChild(input);
+    if (c.boton) {
+      const caja = document.createElement('span');
+      caja.className = 'con-boton';
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sec';
+      b.innerHTML = c.boton.texto;
+      b.addEventListener('click', () => c.boton.alHacerClic(input));
+      caja.append(input, b);
+      label.appendChild(caja);
+    } else {
+      label.appendChild(input);
+    }
     if (c.ancho === 'medio') {
       if (!fila) { fila = document.createElement('div'); fila.className = 'dos'; cuerpo.appendChild(fila); }
       fila.appendChild(label);
@@ -120,7 +138,7 @@ function formulario(titulo, campos, textoOk = 'Guardar', textoCancelar = 'Cancel
     modal.addEventListener('close', () => {
       if (modal.returnValue !== 'ok') return resolver(null);
       const datos = {};
-      $$('input, select', cuerpo).forEach((i) => (datos[i.name] = i.value.trim()));
+      $$('input, select', cuerpo).forEach((i) => (datos[i.name] = i.type === 'file' ? i.files[0] || null : i.value.trim()));
       resolver(datos);
     }, { once: true });
   });
@@ -265,11 +283,15 @@ function pintarMosaico() {
     .filter((p) => !categoriaSel || p.categoria === categoriaSel)
     .sort((a, b) => (vendidos[b.id] || 0) - (vendidos[a.id] || 0) || a.nombre.localeCompare(b.nombre))
     .slice(0, 48);
+  // Si algún producto tiene foto, todos los botones usan el mismo alto para que se vean parejos
+  $('#mosaico').classList.toggle('con-fotos', lista.some((p) => fotos[p.id]));
   $('#mosaico').innerHTML = lista.map((p) => {
     const s = num(p.stock);
     const clase = s <= 0 ? 'agotado' : s <= stockMin(p) ? 'bajo' : '';
     return `<button type="button" class="prod" data-producto="${p.id}">
-      <span class="inicial" style="--h:${tono(p.categoria)}">${esc((p.nombre.trim()[0] || '?').toUpperCase())}</span>
+      ${fotos[p.id]
+        ? `<img class="foto" src="${fotos[p.id]}" alt="">`
+        : `<span class="inicial" style="--h:${tono(p.categoria)}">${esc((p.nombre.trim()[0] || '?').toUpperCase())}</span>`}
       <span class="nombre">${esc(p.nombre)}</span>
       <span class="pie"><span class="precio">${dinero(p.precio)}</span><span class="stock ${clase}">${s} pzs</span></span>
     </button>`;
@@ -320,6 +342,7 @@ pago.addEventListener('change', () => {
   $$('#formas-pago button').forEach((b) => b.classList.toggle('activa', b.dataset.pago === pago.value));
   $('#campo-cliente').hidden = pago.value !== 'credito';
   $('#campo-recibido').hidden = pago.value !== 'efectivo';
+  $('#campo-referencia').hidden = pago.value !== 'tarjeta';
   pintarCambio();
 });
 $('#recibido').addEventListener('input', pintarCambio);
@@ -354,6 +377,7 @@ $('#btn-vaciar').addEventListener('click', () => {
 function limpiarVenta() {
   carrito = [];
   $('#recibido').value = '';
+  $('#referencia').value = '';
   pago.value = 'efectivo';
   pago.dispatchEvent(new Event('change'));
   $('#venta-cliente').value = '';
@@ -393,6 +417,7 @@ async function cobrar() {
     recibido: redondear(recibido),
     cambio: redondear(recibido - total),
     clienteId,
+    referencia: forma === 'tarjeta' ? $('#referencia').value.trim() : '',
     cancelada: false,
   };
   venta.items.forEach((it) => { const p = producto(it.productoId); p.stock = redondear(num(p.stock) - it.cant); });
@@ -436,12 +461,27 @@ function imprimirTicket(v) {
     <table>
       <tr><td><b>TOTAL</b></td><td class="r"><b>${dinero(v.total)}</b></td></tr>
       <tr><td>${NOMBRE_PAGO[v.pago]}</td><td class="r">${dinero(v.recibido)}</td></tr>
+      ${v.referencia ? `<tr><td>Ref.</td><td class="r">${esc(v.referencia)}</td></tr>` : ''}
       ${v.pago === 'efectivo' ? `<tr><td>Cambio</td><td class="r">${dinero(v.cambio)}</td></tr>` : ''}
       ${c ? `<tr><td>Saldo pendiente</td><td class="r">${dinero(c.saldo)}</td></tr>` : ''}
     </table>
     <hr>
     <div class="c">${esc(a.pie)}</div>`;
+  imprimir('ticket');
+}
+
+// Imprime el ticket o las etiquetas (solo se muestra uno de los dos al imprimir)
+function imprimir(que, tamanoPagina = '') {
+  document.body.dataset.imprimir = que;
+  let estilo = null;
+  if (tamanoPagina) {
+    estilo = document.createElement('style');
+    estilo.textContent = `@page { size: ${tamanoPagina}; margin: 0; }`;
+    document.head.appendChild(estilo);
+  }
   window.print();
+  delete document.body.dataset.imprimir;
+  if (estilo) estilo.remove();
 }
 
 // ---------- Cámara (lector de códigos del navegador, Chrome/Android) ----------
@@ -496,24 +536,29 @@ const CAMPOS_PRODUCTO = [
 ];
 const NUMERICOS = ['costo', 'precio', 'mayoreo', 'minMayoreo', 'stock', 'stockMin'];
 
-function pintarProductos() {
+function productosFiltrados() {
   const q = $('#filtro-productos').value;
-  const soloBajos = $('#solo-bajos').checked;
   let lista = q ? buscarProductos(q, Infinity) : [...db.productos].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  if (soloBajos) lista = lista.filter((p) => num(p.stock) <= stockMin(p));
+  if ($('#solo-bajos').checked) lista = lista.filter((p) => num(p.stock) <= stockMin(p));
+  return lista;
+}
+
+function pintarProductos() {
+  const lista = productosFiltrados();
   const tbody = $('#tabla-productos tbody');
   tbody.innerHTML = lista.slice(0, 500).map((p) => {
     const s = num(p.stock);
     const clase = s <= 0 ? 'agotado' : s <= stockMin(p) ? 'bajo' : 'ok';
     return `<tr>
       <td><code>${esc(p.codigo)}</code></td>
-      <td>${esc(p.nombre)}${p.categoria ? ` <small class="muted">· ${esc(p.categoria)}</small>` : ''}</td>
+      <td><span class="con-foto">${fotos[p.id] ? `<img class="mini" src="${fotos[p.id]}" alt="">` : `<span class="mini">${ic('image')}</span>`}<span>${esc(p.nombre)}${p.categoria ? ` <small class="muted">· ${esc(p.categoria)}</small>` : ''}</span></span></td>
       <td>${esc(p.marca)}</td>
       <td class="num">${dinero(p.precio)}</td>
       <td class="num">${num(p.mayoreo) ? `${dinero(p.mayoreo)} <small class="muted">≥${num(p.minMayoreo)}</small>` : '—'}</td>
       <td class="num"><span class="badge ${clase}">${s}</span></td>
       <td class="acc">
         <button class="link" data-surtir="${p.id}">${ic('package-plus')}Surtir</button>
+        <button class="btn-icono" data-etiqueta="${p.id}" title="Imprimir etiqueta">${ic('barcode')}</button>
         <button class="btn-icono" data-editar="${p.id}" title="Editar">${ic('pencil')}</button>
         <button class="btn-icono peligro" data-borrar="${p.id}" title="Borrar">${ic('trash-2')}</button>
       </td>
@@ -530,7 +575,7 @@ $('#filtro-productos').addEventListener('input', pintarProductos);
 $('#solo-bajos').addEventListener('change', pintarProductos);
 
 async function editarProducto(p) {
-  const r = await formulario(p ? 'Editar producto' : 'Nuevo producto', CAMPOS_PRODUCTO.map(([k, etiqueta]) => ({
+  const campos = CAMPOS_PRODUCTO.map(([k, etiqueta]) => ({
     nombre: k,
     etiqueta,
     tipo: NUMERICOS.includes(k) ? 'number' : 'text',
@@ -538,15 +583,28 @@ async function editarProducto(p) {
     valor: p ? p[k] : '',
     requerido: k === 'nombre' || k === 'precio',
     ancho: k === 'nombre' || k === 'codigo' ? null : 'medio',
-  })));
+    boton: k === 'codigo' ? { texto: `${ic('barcode')}Generar`, alHacerClic: (input) => { input.value = nuevoCodigo(); } } : null,
+  }));
+  campos.push({ nombre: 'foto', etiqueta: p && fotos[p.id] ? 'Cambiar foto' : 'Foto (opcional)', tipo: 'archivo' });
+  if (p && fotos[p.id]) {
+    campos.push({ nombre: 'quitarFoto', etiqueta: 'Foto actual', opciones: [['', 'Conservar'], ['si', 'Quitar foto']], valor: '' });
+  }
+  const r = await formulario(p ? 'Editar producto' : 'Nuevo producto', campos);
   if (!r) return;
   if (r.codigo && db.productos.some((o) => o !== p && sinAcentos(o.codigo) === sinAcentos(r.codigo))) {
     return aviso(`Ya existe otro producto con el código ${r.codigo}`);
   }
-  NUMERICOS.forEach((k) => { if (k !== 'stockMin' || r[k] !== '') r[k] = num(r[k]); });
-  if (p) Object.assign(p, r);
-  else db.productos.push(Object.assign({ id: id() }, r));
+  const { foto, quitarFoto, ...datos } = r;
+  NUMERICOS.forEach((k) => { if (k !== 'stockMin' || datos[k] !== '') datos[k] = num(datos[k]); });
+  if (p) Object.assign(p, datos);
+  else db.productos.push((p = Object.assign({ id: id() }, datos)));
   guardar();
+  try {
+    if (foto) await guardarFoto(p.id, await achicarImagen(foto));
+    else if (quitarFoto) await borrarFoto(p.id);
+  } catch (e) {
+    aviso('No se pudo guardar la foto');
+  }
   pintarProductos();
 }
 
@@ -556,8 +614,9 @@ $('#tabla-productos').addEventListener('click', async (e) => {
   if (d.editar) editarProducto(producto(d.editar));
   if (d.borrar) {
     const p = producto(d.borrar);
-    if (confirm(`¿Borrar "${p.nombre}"?`)) { db.productos = db.productos.filter((x) => x !== p); guardar(); pintarProductos(); }
+    if (confirm(`¿Borrar "${p.nombre}"?`)) { db.productos = db.productos.filter((x) => x !== p); guardar(); borrarFoto(p.id); pintarProductos(); }
   }
+  if (d.etiqueta) imprimirEtiquetas([producto(d.etiqueta)]);
   if (d.surtir) {
     const p = producto(d.surtir);
     const r = await formulario(`Surtir "${p.nombre}"`, [
@@ -743,6 +802,8 @@ function resumenCaja() {
     ganancia: suma(validas, (v) => v.items.reduce((s, it) => s + (it.precio - it.costo) * it.cant, 0)),
   };
   r.esperado = redondear(r.efectivo + r.abonos + r.entradas - r.salidas);
+  r.comision = redondear(r.tarjeta * num(db.ajustes.comisionTarjeta) / 100);
+  r.ganancia = redondear(r.ganancia - r.comision);
   return r;
 }
 
@@ -755,6 +816,7 @@ function pintarCaja() {
     ['Ganancia estimada', dinero(r.ganancia), 'trending-up', 'verde'],
     ['Efectivo', dinero(r.efectivo), 'banknote', 'verde'],
     ['Tarjeta / transf.', dinero(r.tarjeta), 'credit-card', ''],
+    ...(num(db.ajustes.comisionTarjeta) ? [[`Comisión tarjeta (${num(db.ajustes.comisionTarjeta)}%)`, dinero(r.comision), 'credit-card', 'rojo']] : []),
     ['Fiado', dinero(r.credito), 'notebook-pen', 'ambar'],
     ['Abonos en efectivo', dinero(r.abonos), 'hand-coins', 'verde'],
     ['Entradas', dinero(r.entradas), 'circle-arrow-down', ''],
@@ -822,6 +884,151 @@ $('#btn-corte').addEventListener('click', async () => {
   aviso(dif === 0 ? 'Corte cerrado. La caja cuadra.' : `Corte cerrado. ${dif > 0 ? 'Sobran' : 'Faltan'} ${dinero(Math.abs(dif))}`);
 });
 
+// ---------- Fotos de productos ----------
+// Se guardan en IndexedDB porque en localStorage no caben. Se achican a 320 px.
+const fotos = {}; // id del producto → URL para <img>
+let baseFotos = null;
+
+function abrirFotos() {
+  return new Promise((ok, mal) => {
+    const r = indexedDB.open('pdv-fotos', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('fotos');
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => mal(r.error);
+  });
+}
+
+async function almacen(modo, accion) {
+  baseFotos = baseFotos || (await abrirFotos());
+  return new Promise((ok, mal) => {
+    const t = baseFotos.transaction('fotos', modo);
+    const peticion = accion(t.objectStore('fotos'));
+    t.oncomplete = () => ok(peticion && peticion.result);
+    t.onerror = () => mal(t.error);
+  });
+}
+
+async function todasLasFotos() {
+  const todas = {};
+  await almacen('readonly', (s) => {
+    const cursor = s.openCursor();
+    cursor.onsuccess = () => { const c = cursor.result; if (c) { todas[c.key] = c.value; c.continue(); } };
+  });
+  return todas;
+}
+
+async function cargarFotos() {
+  try {
+    Object.entries(await todasLasFotos()).forEach(([pid, blob]) => (fotos[pid] = URL.createObjectURL(blob)));
+  } catch (e) { /* navegador sin IndexedDB: la app funciona sin fotos */ }
+}
+
+async function guardarFoto(pid, blob) {
+  await almacen('readwrite', (s) => s.put(blob, pid));
+  if (fotos[pid]) URL.revokeObjectURL(fotos[pid]);
+  fotos[pid] = URL.createObjectURL(blob);
+}
+
+async function borrarFoto(pid) {
+  try { await almacen('readwrite', (s) => s.delete(pid)); } catch (e) { /* no había */ }
+  if (fotos[pid]) URL.revokeObjectURL(fotos[pid]);
+  delete fotos[pid];
+}
+
+async function achicarImagen(archivo, lado = 320) {
+  const img = await createImageBitmap(archivo);
+  const k = Math.min(1, lado / Math.max(img.width, img.height));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = Math.round(img.width * k);
+  lienzo.height = Math.round(img.height * k);
+  const ctx = lienzo.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+  ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height);
+  return new Promise((ok) => lienzo.toBlob(ok, 'image/jpeg', 0.82));
+}
+
+const blobATexto = (blob) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
+
+async function fotosParaRespaldo() {
+  const todas = await todasLasFotos();
+  for (const pid in todas) todas[pid] = await blobATexto(todas[pid]);
+  return todas;
+}
+
+async function restaurarFotos(respaldo) {
+  try {
+    await almacen('readwrite', (s) => s.clear());
+    Object.keys(fotos).forEach((pid) => { URL.revokeObjectURL(fotos[pid]); delete fotos[pid]; });
+    for (const [pid, texto] of Object.entries(respaldo)) await guardarFoto(pid, await (await fetch(texto)).blob());
+  } catch (e) {
+    aviso('No se pudieron restaurar las fotos');
+  }
+}
+
+// ---------- Códigos de barras y etiquetas ----------
+// Los códigos que genera la app son EAN-13 que empiezan con 20 (rango para uso interno de tiendas).
+const digitoEAN = (d) => String((10 - ([...d].reduce((t, c, i) => t + Number(c) * (i % 2 ? 3 : 1), 0) % 10)) % 10);
+
+function nuevoCodigo() {
+  let n = num(db.siguienteCodigo) || 1;
+  let codigo;
+  do {
+    codigo = '20' + String(n).padStart(10, '0');
+    codigo += digitoEAN(codigo);
+    n++;
+  } while (db.productos.some((p) => p.codigo === codigo));
+  db.siguienteCodigo = n;
+  guardar();
+  return codigo;
+}
+
+function formatoCodigo(codigo) {
+  if (/^\d{13}$/.test(codigo) && digitoEAN(codigo.slice(0, 12)) === codigo[12]) return 'EAN13';
+  if (/^\d{8}$/.test(codigo) && digitoEAN('00000' + codigo.slice(0, 7)) === codigo[7]) return 'EAN8';
+  return 'CODE128';
+}
+
+function dibujarCodigo(svg, codigo, alto) {
+  const opciones = { height: alto, width: 1.6, fontSize: 12, margin: 0, textMargin: 1, background: 'transparent' };
+  try {
+    JsBarcode(svg, codigo, Object.assign({ format: formatoCodigo(codigo) }, opciones));
+  } catch (e) {
+    JsBarcode(svg, codigo, Object.assign({ format: 'CODE128' }, opciones));
+  }
+}
+
+async function imprimirEtiquetas(lista) {
+  if (!lista.length) return aviso('No hay productos para imprimir');
+  if (typeof JsBarcode === 'undefined') return aviso('No se cargó el generador de códigos');
+  const sinCodigo = lista.filter((p) => !p.codigo);
+  const r = await formulario(lista.length === 1 ? `Etiqueta de "${lista[0].nombre}"` : `Etiquetas de ${lista.length} productos`, [
+    ...(sinCodigo.length ? [{ tipo: 'texto', valor: `${sinCodigo.length === 1 ? 'Este producto no tiene' : `${sinCodigo.length} productos no tienen`} código; se les genera uno al imprimir.` }] : []),
+    { nombre: 'copias', etiqueta: 'Copias de cada una', tipo: 'number', paso: '1', valor: 1, requerido: true, ancho: 'medio' },
+    { nombre: 'precio', etiqueta: 'Mostrar precio', opciones: [['si', 'Sí'], ['no', 'No']], valor: 'si', ancho: 'medio' },
+    { nombre: 'papel', etiqueta: 'Papel', opciones: [['rollo', 'Impresora de etiquetas (50 × 25 mm)'], ['hoja', 'Hoja carta (3 columnas)']], valor: 'rollo' },
+  ], 'Imprimir');
+  if (!r) return;
+  sinCodigo.forEach((p) => (p.codigo = nuevoCodigo()));
+  if (sinCodigo.length) { guardar(); pintarProductos(); }
+  const copias = Math.max(1, Math.min(500, Math.round(num(r.copias))));
+  const cont = $('#etiquetas');
+  cont.className = 'etiquetas ' + r.papel;
+  cont.innerHTML = '';
+  lista.forEach((p) => {
+    for (let i = 0; i < copias; i++) {
+      const et = document.createElement('div');
+      et.className = 'etiqueta';
+      et.innerHTML = `<div class="et-nombre">${esc(p.nombre)}</div>${r.precio === 'si' ? `<div class="et-precio">${dinero(p.precio)}</div>` : ''}<svg></svg>`;
+      cont.appendChild(et);
+      dibujarCodigo(et.querySelector('svg'), p.codigo, r.papel === 'rollo' ? 34 : 40);
+    }
+  });
+  imprimir('etiquetas', r.papel === 'rollo' ? '50mm 25mm' : 'letter');
+}
+
+$('#btn-etiquetas').addEventListener('click', () => imprimirEtiquetas(productosFiltrados()));
+
 // ---------- Ajustes ----------
 function pintarAjustes() {
   const f = $('#form-ajustes');
@@ -832,14 +1039,17 @@ $('#form-ajustes').addEventListener('submit', (e) => {
   const f = e.target;
   Object.keys(db.ajustes).forEach((k) => { if (f.elements[k]) db.ajustes[k] = f.elements[k].value.trim(); });
   db.ajustes.stockMinDefault = num(db.ajustes.stockMinDefault);
+  db.ajustes.comisionTarjeta = num(db.ajustes.comisionTarjeta);
   guardar();
   pintarMarca();
   aviso('Guardado');
 });
 
-$('#btn-respaldo').addEventListener('click', () => {
+$('#btn-respaldo').addEventListener('click', async () => {
   const hoy = new Date().toISOString().slice(0, 10);
-  descargar(`respaldo-punto-de-venta-${hoy}.json`, JSON.stringify(db), 'application/json');
+  let conFotos = {};
+  try { conFotos = await fotosParaRespaldo(); } catch (e) { /* sin fotos */ }
+  descargar(`respaldo-punto-de-venta-${hoy}.json`, JSON.stringify(Object.assign({}, db, { fotos: conFotos })), 'application/json');
 });
 $('#btn-restaurar').addEventListener('click', () => $('#archivo-respaldo').click());
 $('#archivo-respaldo').addEventListener('change', async (e) => {
@@ -850,8 +1060,10 @@ $('#archivo-respaldo').addEventListener('change', async (e) => {
     const datos = JSON.parse(await f.text());
     if (!Array.isArray(datos.productos)) throw new Error();
     if (!confirm('Esto reemplaza todos los datos actuales por los del respaldo. ¿Continuar?')) return;
-    db = Object.assign(vacio(), datos);
+    const { fotos: fotosRespaldo, ...resto } = datos;
+    db = Object.assign(vacio(), resto, { ajustes: Object.assign(vacio().ajustes, resto.ajustes) });
     guardar();
+    await restaurarFotos(fotosRespaldo || {});
     pintarMarca();
     aviso('Respaldo restaurado');
     mostrarVista('ajustes');
@@ -886,3 +1098,4 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 
 pintarMarca();
 pintarVender();
+cargarFotos().then(() => { if (Object.keys(fotos).length) { pintarVender(); pintarProductos(); } });

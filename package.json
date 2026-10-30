@@ -29,6 +29,7 @@
       "styles.css",
       "iconos/**",
       "fuentes/**",
+      "vendor/**",
       "electron/**",
       "package.json"
     ],
