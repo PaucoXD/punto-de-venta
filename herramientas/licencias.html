@@ -24,7 +24,7 @@
   <div class="pagina">
     <header>
       <img src="../iconos/icono.svg" alt="" width="44" height="44">
-      <div><h1>Generador de licencias</h1><span class="muted">Solo para ti, el proveedor del Punto de Venta.</span></div>
+      <div><h1>Generador de licencias</h1><span class="muted">Solo para ti, el proveedor del Punto de Venta y del CRM.</span></div>
     </header>
 
     <section class="panel form" id="sin-llaves" hidden>
@@ -50,6 +50,12 @@
 
     <form class="panel form" id="form-generar" hidden autocomplete="off">
       <h3>Generar</h3>
+      <label>Producto
+        <select name="producto">
+          <option value="pdv">Punto de Venta</option>
+          <option value="crm">CRM de Ventas</option>
+        </select>
+      </label>
       <label>¿Qué generar?
         <select name="tipo">
           <option value="licencia">Licencia</option>
@@ -121,7 +127,7 @@
     $('#publica').value = textoPublica();
     $('#aviso-publica').hidden = LLAVE_DE_LA_APP === textoPublica();
     $('#historial').innerHTML = (datos.historial || []).map((h, i) => [h, i]).reverse().map(([h, i]) =>
-      `<tr><td>${esc(h.f)}</td><td>${esc(h.n)}${h.t === 'rescate' ? ' <span class="badge neutro">rescate</span>' : ''}</td><td><code>${esc(h.e.slice(0, 4) + "-" + h.e.slice(4))}</code></td><td>${esc(h.h || 'Nunca')}</td><td><button type="button" class="btn-icono peligro" data-borrar="${i}" title="Borrar de la lista">✕</button></td></tr>`).join('');
+      `<tr><td>${esc(h.f)}</td><td>${esc(h.n)}${h.p === 'crm' ? ' <span class="badge neutro">CRM</span>' : ''}${h.t === 'rescate' ? ' <span class="badge neutro">rescate</span>' : ''}</td><td><code>${esc(h.e.slice(0, 4) + "-" + h.e.slice(4))}</code></td><td>${esc(h.h || 'Nunca')}</td><td><button type="button" class="btn-icono peligro" data-borrar="${i}" title="Borrar de la lista">✕</button></td></tr>`).join('');
   }
 
   $('#btn-crear').addEventListener('click', async () => {
@@ -160,29 +166,33 @@
   $('#btn-copiar-clave').addEventListener('click', () => copiar($('#clave').value));
 
   // Misma forma que espera leerClave() en app.js: PDV-<datos>.<firma>
+  // Las del CRM llevan p:"crm" dentro de lo firmado y empiezan con CRM-, para que no sirvan en el otro producto
   $('#form-generar').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target.elements;
     const codigo = f.equipo.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (codigo.length !== 8) return aviso('El código del equipo tiene 8 letras y números, ej. K7F2-9QXA');
     const tipo = f.tipo.value;
+    const producto = f.producto.value;
+    if (producto === 'crm' && tipo === 'rescate') return aviso('El CRM no usa PIN: no necesita llave de rescate');
     const hoy = new Date();
     const dia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     let hasta = '';
     if (tipo === 'rescate') hasta = dia(new Date(hoy.getTime() + 3 * 864e5));
     else if (Number(f.meses.value) > 0) { const d = new Date(hoy); d.setMonth(d.getMonth() + Number(f.meses.value)); hasta = dia(d); }
     const carga = { v: 1, t: tipo, n: f.negocio.value.trim(), e: codigo, h: hasta, f: dia(hoy) };
+    if (producto === 'crm') carga.p = 'crm';
     const texto = new TextEncoder().encode(JSON.stringify(carga));
     const llave = await crypto.subtle.importKey('jwk', datos.privada, ALGO, false, ['sign']);
     const firma = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, llave, texto);
-    const clave = `PDV-${b64(texto)}.${b64(firma)}`;
+    const clave = `${producto === 'crm' ? 'CRM' : 'PDV'}-${b64(texto)}.${b64(firma)}`;
 
     const equipo = codigo.slice(0, 4) + '-' + codigo.slice(4);
     const instrucciones = tipo === 'rescate'
       ? 'En la pantalla de entrada toca "Olvidé mi PIN" y pega esta llave.'
       : 'En la app ve a Ajustes → Licencia, pega esta clave y toca Activar.';
     $('#resultado').hidden = false;
-    $('#resultado-texto').innerHTML = `<b>${tipo === 'rescate' ? 'Llave de rescate' : 'Licencia'}</b> para ${esc(carga.n)} · equipo ${equipo} · ${hasta ? `vale hasta el ${hasta}` : 'sin vencimiento'}`;
+    $('#resultado-texto').innerHTML = `<b>${tipo === 'rescate' ? 'Llave de rescate' : producto === 'crm' ? 'Licencia del CRM' : 'Licencia'}</b> para ${esc(carga.n)} · equipo ${equipo} · ${hasta ? `vale hasta el ${hasta}` : 'sin vencimiento'}`;
     $('#clave').value = clave;
     $('#btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(`${instrucciones}\n\n${clave}`);
     datos.historial = [...(datos.historial || []), carga];

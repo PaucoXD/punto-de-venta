@@ -1358,6 +1358,7 @@ async function leerClave(clave, tipo, revisarFecha = true) {
   } catch (e) {
     throw new Error('La clave no es válida. Revisa que esté completa.');
   }
+  if (datos.p && datos.p !== 'pdv') throw new Error('Esa clave es de otro producto (por ejemplo, del CRM), no del punto de venta.');
   if (datos.t !== tipo) throw new Error(tipo === 'licencia' ? 'Esa es una llave de rescate, no una licencia.' : 'Esa es una licencia, no una llave de rescate.');
   if (datos.e !== lic.equipo) throw new Error(`Esta clave es para otro equipo. El código de este es ${codigoEquipo()}.`);
   if (revisarFecha && datos.h && finDelDia(datos.h) < ahora()) throw new Error(`Esta clave venció el ${datos.h}.`);
